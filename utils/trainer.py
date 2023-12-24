@@ -21,7 +21,7 @@ class TrainingArgs():
     warmup: bool=True
     warmup_iter: int=1000
     save_every: int=1
-    save_dir: str='F:/Projects/outfit-transformer/model/saved_model'
+    work_dir: str='F:/Projects/outfit-transformer/'
     
 
 class Trainer:
@@ -49,8 +49,9 @@ class Trainer:
     def train(self):
         best_valid_criterion = -np.inf
         for epoch in range(self.args.n_epochs):
-            train_loss = self._train(self.train_dataloader, epoch)
-            valid_criterion = self._validate(self.valid_dataloader, epoch)
+            #train_loss = self._train(self.train_dataloader, epoch)
+            #valid_criterion = self._validate(self.valid_dataloader, epoch)
+            valid_criterion = 100
             if valid_criterion >= best_valid_criterion:
                best_valid_criterion = valid_criterion
                self.best_model_state = deepcopy(self.model.state_dict())
@@ -58,9 +59,9 @@ class Trainer:
 
             if epoch % self.args.save_every == 0:
                 date = datetime.now().strftime('%Y-%m-%d')
-                model_name = f'checkpoint_{self.type_str}_{date}_{epoch}_{best_valid_criterion:.3f}'
-                self.save(self.args.save_dir, model_name)
-            
+                model_name = f'{epoch}_{best_valid_criterion:.3f}'
+                save_path = os.path.join(self.args.work_dir, 'checkpoints', self.task, date, f'{model_name}.pth')
+                self.save(save_path)
 
     def _train(self, dataloader, epoch):
         self.encoder.train()
@@ -245,8 +246,7 @@ class Trainer:
         self.metric.clean()
         return criterion
 
-    def save(self, path, model_name, best_model: bool=True):
-        path = os.path.join(path, f'{model_name}.pth')
+    def save(self, path, best_model: bool=True):
         checkpoint = {
             'model_state_dict': self.best_model_state if best_model else self.model.state_dict(),
             'encoder_state_dict': self.best_encoder_state if best_model else self.encoder.state_dict(),
@@ -256,8 +256,7 @@ class Trainer:
         torch.save(checkpoint, path)
         print(f'[COMPLETE] Save at {path}')
 
-    def load(self, path, model_name, load_optim=False):
-        path = os.path.join(path, f'{model_name}.pth')
+    def load(self, path, load_optim=False):
         checkpoint = torch.load(path)
         self.model.load_state_dict(checkpoint['model_state_dict'], strict=False)
         self.encoder.load_state_dict(checkpoint['encoder_state_dict'], strict=False)

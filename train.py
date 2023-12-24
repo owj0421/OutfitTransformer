@@ -27,7 +27,6 @@ parser.add_argument('--train_batch', help='Size of Batch for Training', type=int
 parser.add_argument('--valid_batch', help='Size of Batch for Validation, Test', type=int, default=64)
 parser.add_argument('--n_epochs', help='Number of epochs', type=int, default=5)
 parser.add_argument('--learning_rate', help='Learning rate', type=float, default=1e-5)
-parser.add_argument('--save_dir', help='Full directory for save', type=str, required=True)
 parser.add_argument('--work_dir', help='Full working directory', type=str, required=True)
 parser.add_argument('--data_dir', help='Full dataset directory', type=str, required=True)
 parser.add_argument('--wandb_api_key', required=True)
@@ -49,7 +48,7 @@ training_args = TrainingArgs(
     valid_batch=args.valid_batch,
     n_epochs=args.n_epochs,
     learning_rate=args.learning_rate,
-    save_dir = args.save_dir
+    work_dir = args.work_dir
     )
     
 dataset_args = DatasetArgs(
@@ -90,6 +89,5 @@ trainer = Trainer(model, encoder, train_dataloader, valid_dataloader,
 
 if args.checkpoint != None:
     checkpoint = args.checkpoint
-    trainer.load(training_args.save_dir, checkpoint, load_optim=False)
+    trainer.load(checkpoint, load_optim=False)
 trainer.train()
-trainer.save(training_args.save_path, 'FINAL')
