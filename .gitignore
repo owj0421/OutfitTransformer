@@ -1,0 +1,12 @@
+# model
+*.pth
+
+# data
+*.jpg
+*.png
+*.json
+
+# 수정하지 마세요.
+model/saved_model/
+__pycache__/
+wandb/

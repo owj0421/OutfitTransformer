@@ -31,7 +31,7 @@ parser.add_argument('--save_dir', help='Full directory for save', type=str, requ
 parser.add_argument('--work_dir', help='Full working directory', type=str, required=True)
 parser.add_argument('--data_dir', help='Full dataset directory', type=str, required=True)
 parser.add_argument('--wandb_api_key', required=True)
-parser.add_argument('--load_model_name', default=None)
+parser.add_argument('--checkpoint', default=None)
 args = parser.parse_args()
 
 
@@ -88,8 +88,8 @@ metric = MetricCalculator()
 trainer = Trainer(model, encoder, train_dataloader, valid_dataloader,
                   optimizer=optimizer, scheduler=scheduler, metric=metric, device=device, args=training_args)
 
-if args.load_model_name != None:
-    model_name = args.load_model_name
-    trainer.load(training_args.save_dir, model_name, load_optim=False)
+if args.checkpoint != None:
+    checkpoint = args.checkpoint
+    trainer.load(training_args.save_dir, checkpoint, load_optim=False)
 trainer.train()
 trainer.save(training_args.save_path, 'FINAL')
