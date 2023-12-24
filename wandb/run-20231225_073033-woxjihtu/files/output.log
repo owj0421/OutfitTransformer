@@ -1,7 +1,0 @@
-[COMPLETE] Build Dataset
-[COMPLETE] Build Encoder
-[COMPLETE] Build Model
-Traceback (most recent call last):
-  File "F:\Projects\outfit-transformer\train.py", line 91, in <module>
-    trainer.load(training_args.save_path, model_name, load_optim=False)
-AttributeError: 'TrainingArgs' object has no attribute 'save_path'

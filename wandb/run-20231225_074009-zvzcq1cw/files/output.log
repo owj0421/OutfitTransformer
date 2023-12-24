@@ -1,6 +1,0 @@
-[COMPLETE] Build Dataset
-[COMPLETE] Build Encoder
-Traceback (most recent call last):
-  File "F:\Projects\outfit-transformer\train.py", line 74, in <module>
-    model = OutfitTransformer(pretrain=training_args.pretrain, embedding_dim=128).to(device)
-AttributeError: 'TrainingArgs' object has no attribute 'pretrain'
