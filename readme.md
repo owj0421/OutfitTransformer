@@ -50,5 +50,4 @@ python inference.py
 ```
 
 ## 🔔 Note
-구현에 대한 논문 리뷰는 [여기서]() 보실 수 있습니다. <br> 
 A paper review of each implementation can be found at [here](). (Only Available in Korean)
