@@ -18,16 +18,20 @@ class OutfitTransformer(nn.Module):
 
         # fc layer for pretraining
         self.fc_classifier = nn.Sequential(
+            nn.ELU(),
+            nn.Dropout(0.3),
             nn.Linear(embedding_dim, embedding_dim),
-            nn.LeakyReLU(),
+            nn.ELU(),
             nn.Dropout(0.3),
             nn.Linear(embedding_dim, 1)
             )
         
         # fc layer for finetuning
         self.fc_embed = nn.Sequential(
+            nn.ELU(),
+            nn.Dropout(0.3),
             nn.Linear(embedding_dim, embedding_dim),
-            nn.LeakyReLU(),
+            nn.ELU(),
             nn.Dropout(0.3),
             nn.Linear(embedding_dim, embedding_dim)
             )

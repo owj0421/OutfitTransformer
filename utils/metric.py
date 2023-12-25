@@ -19,4 +19,5 @@ class MetricCalculator:
     
     def clean(self):
         self.y_true = []
+        self.y_score = []
         self.y_pred = []

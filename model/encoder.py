@@ -39,8 +39,10 @@ class TextEncoder(nn.Module):
             param.requires_grad = False
 
         self.fc_embed = nn.Sequential(
+            nn.ELU(),
+            nn.Dropout(0.3),
             nn.Linear(768, 768),
-            nn.LeakyReLU(),
+            nn.ELU(),
             nn.Dropout(0.3),
             nn.Linear(768, embedding_dim)
             )

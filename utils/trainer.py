@@ -36,7 +36,7 @@ class Trainer:
         self.scheduler = scheduler
         self.device = device
         self.args = args
-        self.loss_func = torch.nn.BCELoss() if self.task=='compatibility' else TripletMarginLossWithMultipleNegatives()
+        self.loss_func = focal_loss if self.task=='compatibility' else triplet_margin_loss_with_multiple_negatives
         self.model.to(self.device)
         self.encoder.to(self.device)
         
@@ -123,7 +123,7 @@ class Trainer:
                                                neg_input_ids.to(self.device),
                                                neg_attention_mask.to(self.device)).view(B, T, -1)
                 
-                loss_h = self.loss_func(context_embedding, pos_embedding, neg_embedding)
+                loss = self.loss_func(context_embedding, pos_embedding, neg_embedding)
 
             loss.backward()
             torch.nn.utils.clip_grad_norm_(chain(self.model.parameters(), self.encoder.parameters()), 5)

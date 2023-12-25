@@ -187,8 +187,8 @@ class PolyvoreDataset(Dataset):
             if self.is_train:
                 anchor_ids = self.data[idx]
                 # function to control the number of items in combinations
-                num_sample = np.random.choice(2, len(anchor_ids))
-                anchor_ids = random.sample(anchor_ids, num_sample)
+                # num_sample = np.random.choice(2, len(anchor_ids))
+                # anchor_ids = random.sample(anchor_ids, num_sample)
 
                 anchor_items = [self._get_item(item_id) for item_id in anchor_ids]
 
