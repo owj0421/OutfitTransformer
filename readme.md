@@ -22,7 +22,7 @@ Implementation of paper - [Outfit Transformer: Outfit Representations for Fashio
 |SCE-Net|59.07|
 |CSA-Net|63.73|
 |OutfitTransformer(Paper)|67.10|
-|**OutfitTransformer(Implemented)**|**?**|
+|**OutfitTransformer(Implemented w/o Target Description)**|**?**|
 
 ## 🧱 Train
 ### Data Preparation
