@@ -21,11 +21,13 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
+# Parser
 parser = argparse.ArgumentParser(description='Outfit-Transformer Trainer')
 parser.add_argument('--task', help='compatibility, fitb', type=str, default='compatibility')
 parser.add_argument('--train_batch', help='Size of Batch for Training', type=int, default=48)
 parser.add_argument('--valid_batch', help='Size of Batch for Validation, Test', type=int, default=64)
 parser.add_argument('--n_epochs', help='Number of epochs', type=int, default=5)
+parser.add_argument('--scheduler_step_size', help='Step LR', type=int, default=1000)
 parser.add_argument('--learning_rate', help='Learning rate', type=float, default=1e-5)
 parser.add_argument('--work_dir', help='Full working directory', type=str, required=True)
 parser.add_argument('--data_dir', help='Full dataset directory', type=str, required=True)
@@ -33,13 +35,14 @@ parser.add_argument('--wandb_api_key', required=True)
 parser.add_argument('--checkpoint', default=None)
 args = parser.parse_args()
 
-
+# Wandb
 os.environ["WANDB_API_KEY"] = args.wandb_api_key
 os.environ["WANDB_PROJECT"] = f"outfit-transformer-{args.task}"
 os.environ["WANDB_LOG_MODEL"] = "all"
 wandb.login()
-run = wandb.init(project=f"outfit-transformer-{args.task}")
+run = wandb.init()
 
+# Setup
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 training_args = TrainingArgs(
@@ -75,19 +78,15 @@ print('[COMPLETE] Build Encoder')
 model = OutfitTransformer(embedding_dim=128).to(device)
 print('[COMPLETE] Build Model')
 
-optimizer = AdamW(
-    chain(model.parameters(), encoder.parameters()), 
-    lr=training_args.learning_rate,
-    )
-    
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1111, 0.5)
-
+optimizer = AdamW(chain(model.parameters(), encoder.parameters()), lr=training_args.learning_rate,)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.scheduler_step_size, gamma=0.5)
 metric = MetricCalculator()
-
 trainer = Trainer(model, encoder, train_dataloader, valid_dataloader,
                   optimizer=optimizer, scheduler=scheduler, metric=metric, device=device, args=training_args)
 
 if args.checkpoint != None:
     checkpoint = args.checkpoint
     trainer.load(checkpoint, load_optim=False)
+
+# Train
 trainer.train()

@@ -22,7 +22,7 @@ class ImageEncoder(nn.Module):
         
     def forward(self, images):
         embed = self.model(images)
-        embed = F.normalize(embed, p=2, dim=1)
+        # embed = F.normalize(embed, p=2, dim=1)
         
         return embed
     
@@ -41,9 +41,6 @@ class TextEncoder(nn.Module):
         self.fc_embed = nn.Sequential(
             nn.ELU(),
             nn.Dropout(0.3),
-            nn.Linear(768, 768),
-            nn.ELU(),
-            nn.Dropout(0.3),
             nn.Linear(768, embedding_dim)
             )
 
@@ -57,7 +54,7 @@ class TextEncoder(nn.Module):
         model_output = self.model(input_ids, attention_mask)
         model_output = self._mean_pooling(model_output, attention_mask)
         embed = self.fc_embed(model_output)
-        embed = F.normalize(embed, p=2, dim=1)
+        # embed = F.normalize(embed, p=2, dim=1)
 
         return embed
     

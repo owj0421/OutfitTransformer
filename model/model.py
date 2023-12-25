@@ -8,9 +8,9 @@ import torch.nn.functional as F
 class OutfitTransformer(nn.Module):
     def __init__(self, embedding_dim=128):
         super(OutfitTransformer, self).__init__()
-        transformer_layer = nn.TransformerEncoderLayer(d_model=embedding_dim, nhead=16, dim_feedforward=1024, batch_first=True)
+        transformer_layer = nn.TransformerEncoderLayer(d_model=embedding_dim, nhead=16, dim_feedforward=2048, batch_first=True)
         encoder_norm = nn.LayerNorm(embedding_dim)
-        self.transformer = nn.TransformerEncoder(transformer_layer, 4, encoder_norm)
+        self.transformer = nn.TransformerEncoder(transformer_layer, 6, encoder_norm)
         self._reset_parameters()
 
         self.type_embedding = nn.Embedding(num_embeddings=2, embedding_dim=embedding_dim)

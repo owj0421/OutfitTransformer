@@ -13,12 +13,13 @@ from albumentations.pytorch import ToTensorV2
 
 @dataclass
 class DatasetArgs():
-    work_dir: str='F:/Projects/outfit-transformer'
-    data_dir: str='F:/Projects/datasets/polyvore_outfits'
+    work_dir: str
+    data_dir: str
     polyvore_split: str='nondisjoint'
     max_token_len: int=16
     img_size: int=224
     huggingface_tokenizer: str='sentence-transformers/paraphrase-albert-small-v2'
+
 
 class PolyvoreDataset(Dataset):
     def __init__(

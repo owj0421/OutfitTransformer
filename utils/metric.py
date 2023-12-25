@@ -1,5 +1,6 @@
 from sklearn.metrics import roc_auc_score, accuracy_score
 
+
 class MetricCalculator:
     def __init__(self):
         self.y_true = []

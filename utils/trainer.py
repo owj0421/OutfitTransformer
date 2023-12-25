@@ -6,10 +6,9 @@ from copy import deepcopy
 from itertools import chain
 from datetime import datetime
 from dataclasses import dataclass
-
 import torch
-
 from .loss import *
+
 
 @dataclass
 class TrainingArgs():
@@ -21,7 +20,7 @@ class TrainingArgs():
     warmup: bool=True
     warmup_iter: int=1000
     save_every: int=1
-    work_dir: str='F:/Projects/outfit-transformer/'
+    work_dir: str
     
 
 class Trainer:
@@ -51,6 +50,7 @@ class Trainer:
         for epoch in range(self.args.n_epochs):
             train_loss = self._train(self.train_dataloader, epoch)
             valid_criterion = self._validate(self.valid_dataloader, epoch)
+
             if valid_criterion >= best_valid_criterion:
                best_valid_criterion = valid_criterion
                self.best_model_state = deepcopy(self.model.state_dict())
@@ -59,8 +59,8 @@ class Trainer:
             if epoch % self.args.save_every == 0:
                 date = datetime.now().strftime('%Y-%m-%d')
                 model_name = f'{epoch}_{best_valid_criterion:.3f}'
-                save_path = os.path.join(self.args.work_dir, 'checkpoints', self.task, date, f'{model_name}.pth')
-                self.save(save_path)
+                save_dir = os.path.join(self.args.work_dir, 'checkpoints', self.task, date)
+                self.save(save_dir, model_name)
 
     def _train(self, dataloader, epoch):
         self.encoder.train()
@@ -136,8 +136,9 @@ class Trainer:
                 )
 
             wandb.log({
+                "learning_rate": self.scheduler.get_last_lr()[0],
                 "train_loss": loss,
-                "learning_rate": self.scheduler.get_last_lr()[0]
+                "train_step": epoch * len(epoch_iterator) + iter
                 })
 
         return losses / iter
@@ -183,8 +184,9 @@ class Trainer:
                         )
 
                 wandb.log({
-                    "Valid_loss": loss,
-                    "Valid_acc": running_acc,
+                    "valid_loss": loss,
+                    "valid_acc": running_acc,
+                    "valid_step": epoch * len(epoch_iterator) + iter
                     })
                     
             else:
@@ -228,24 +230,33 @@ class Trainer:
                         )
                             
                 wandb.log({
-                    "Valid acc": running_acc
+                    "valid acc": running_acc,
+                    "valid_step": epoch * len(epoch_iterator) + iter
                     })
         
-
         if self.task=='compatibility':
-            total_auc = self.metric.calc_acc()
-            total_acc = self.metric.calc_auc()
-            print(f'CP-> Epoch: {epoch + 1:03}/{self.args.n_epochs:03} | Acc: {total_acc:.2f} | Auc: {total_auc:.2f}')
+            total_auc = self.metric.calc_auc()
+            total_acc = self.metric.calc_acc()
             criterion = total_auc
+            print(f'CP-> Epoch: {epoch + 1:03}/{self.args.n_epochs:03} | Acc: {total_acc:.2f} | Auc: {total_auc:.2f}')
         else:
             total_acc = self.metric.calc_acc()
-            print(f'FITB-> Epoch: {epoch + 1:03}/{self.args.n_epochs:03} | Acc: {total_acc:.2f}')
             criterion = total_acc
+            print(f'FITB-> Epoch: {epoch + 1:03}/{self.args.n_epochs:03} | Acc: {total_acc:.2f}')
             
         self.metric.clean()
         return criterion
 
-    def save(self, path, best_model: bool=True):
+    def save(self, dir, model_name, best_model: bool=True):
+        def create_folder(dir):
+            try:
+                if not os.path.exists(dir):
+                    os.makedirs(dir)
+            except OSError:
+                print('[Error] Creating directory. ' + dir)
+
+        create_folder(dir)
+        path = os.path.join(dir, f'{model_name}.pth')
         checkpoint = {
             'model_state_dict': self.best_model_state if best_model else self.model.state_dict(),
             'encoder_state_dict': self.best_encoder_state if best_model else self.encoder.state_dict(),

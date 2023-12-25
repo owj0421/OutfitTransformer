@@ -1,7 +1,7 @@
 import torch
-from torch import Tensor
 import torch.nn.functional as F
 import torch.nn as nn
+
 
 def info_nce(anchor, positive, negatives, temparature=0.07, reduction='mean'):
     anc, pos, negs = anchor.unsqueeze(1), positive, negatives
@@ -27,7 +27,7 @@ def triplet_margin_loss_with_multiple_negatives(
         negatives: torch.Tensor,
         margin: int = 2.0,
         reduction: str = 'mean'
-        ):
+        ) -> torch.Tensor:
     anchors = anchor.unsqueeze(1).expand_as(negatives)
     positives = positive.expand_as(negatives)
     loss = nn.TripletMarginLoss(margin=margin, reduction=reduction)(anchors, positives, negatives)
@@ -38,10 +38,10 @@ def triplet_margin_loss_with_multiple_negatives(
 def focal_loss(
         y_prob: torch.Tensor,
         y_true: torch.Tensor,
-        alpha: float = 0.25,
+        alpha: float = 0.5,
         gamma: float = 2,
         reduction: str = "mean",
-    ) -> torch.Tensor:
+        ) -> torch.Tensor:
     ce_loss = F.binary_cross_entropy_with_logits(y_prob, y_true, reduction="none")
     p_t = y_prob * y_true + (1 - y_prob) * (1 - y_true)
     loss = ce_loss * ((1 - p_t) ** gamma)
@@ -57,7 +57,6 @@ def focal_loss(
     elif reduction == "sum":
         loss = loss.sum()
     else:
-        raise ValueError(
-            f"Invalid Value for arg 'reduction': '{reduction} \n Supported reduction modes: 'none', 'mean', 'sum'"
-        )
+        raise ValueError(f"Invalid Value for arg 'reduction': '{reduction} \n Supported reduction modes: 'none', 'mean', 'sum'")
+    
     return loss
