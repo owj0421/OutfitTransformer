@@ -50,4 +50,5 @@ python inference.py
 ```
 
 ## 🔔 Note
-A paper review of each implementation can be found at [here](). (Only Available in Korean)
+- A paper review of each implementation can be found at [here](). (Only Available in Korean)
+- This is Non-Official implementation. (The official repo has not been released.)
