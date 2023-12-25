@@ -31,12 +31,12 @@ Implementation of paper - [Outfit Transformer: Outfit Representations for Fashio
 
 ### Pretraining on CP(Compatibiliby Prediction) task
 ```
-python train.py --task compatibility --train_batch 64 --valid_batch 96 --n_epochs 4 --learning_rate 1e-5 --work_dir $WORK_DIR --data_dir $DATA_DIR --wandb_api_key $WANDB_API_KEY
+python train.py --task compatibility --train_batch 64 --valid_batch 96 --n_epochs 5 --learning_rate 1e-3 --work_dir $WORK_DIR --data_dir $DATA_DIR --wandb_api_key $WANDB_API_KEY
 ```
 
 ### Finetuning on FITB(Fill in The Blank) task
 ```
-python train.py --task fitb --train_batch 4 --valid_batch 64 --n_epochs 96 --learning_rate 1e-5 --work_dir $WORK_DIR --data_dir $DATA_DIR --wandb_api_key $WANDB_API_KEY
+python train.py --task fitb --train_batch 64 --valid_batch 96 --n_epochs 3 --learning_rate 1e-5 --work_dir $WORK_DIR --data_dir $DATA_DIR --wandb_api_key $WANDB_API_KEY
 ```
 
 ## 🔍 Test
