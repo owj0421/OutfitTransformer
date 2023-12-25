@@ -10,4 +10,4 @@
 checkpoints
 __pycache__
 wandb
-temp
+inference

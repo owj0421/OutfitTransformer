@@ -49,9 +49,8 @@ class Trainer:
     def train(self):
         best_valid_criterion = -np.inf
         for epoch in range(self.args.n_epochs):
-            #train_loss = self._train(self.train_dataloader, epoch)
-            #valid_criterion = self._validate(self.valid_dataloader, epoch)
-            valid_criterion = 100
+            train_loss = self._train(self.train_dataloader, epoch)
+            valid_criterion = self._validate(self.valid_dataloader, epoch)
             if valid_criterion >= best_valid_criterion:
                best_valid_criterion = valid_criterion
                self.best_model_state = deepcopy(self.model.state_dict())
