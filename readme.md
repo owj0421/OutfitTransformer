@@ -6,6 +6,7 @@
 Implementation of paper - [Outfit Transformer: Outfit Representations for Fashion Recommendation](https://arxiv.org/abs/2204.04812)
 
 ## 🎯 Performance
+<center>
 ### CP(Compatibility Prediction)
 |Model|AUC|
 |:-|:-:|
@@ -23,6 +24,7 @@ Implementation of paper - [Outfit Transformer: Outfit Representations for Fashio
 |CSA-Net|63.73|
 |OutfitTransformer(Paper)|67.10|
 |**OutfitTransformer(Implemented)**|**?**|
+</center>
 
 ## 🧱 Train
 ### Data Preparation
