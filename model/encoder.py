@@ -22,7 +22,7 @@ class ImageEncoder(nn.Module):
         
     def forward(self, images):
         embed = self.model(images)
-        # embed = F.normalize(embed, p=2, dim=1)
+        embed = F.normalize(embed, p=2, dim=1)
         
         return embed
     
@@ -54,7 +54,7 @@ class TextEncoder(nn.Module):
         model_output = self.model(input_ids, attention_mask)
         model_output = self._mean_pooling(model_output, attention_mask)
         embed = self.fc_embed(model_output)
-        # embed = F.normalize(embed, p=2, dim=1)
+        embed = F.normalize(embed, p=2, dim=1)
 
         return embed
     
@@ -68,5 +68,7 @@ class ItemEncoder(nn.Module):
     def forward(self, img, input_ids=None, attention_mask=None):
         img_embed = self.img_encoder(img)
         txt_embed = self.txt_encoder(input_ids, attention_mask)
+        embed = torch.concat([img_embed, txt_embed], dim=-1)
+        # embed = F.normalize(embed, p=2, dim=1)
 
-        return torch.concat([img_embed, txt_embed], dim=-1)
+        return embed
