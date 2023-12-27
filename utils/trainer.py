@@ -20,7 +20,7 @@ class TrainingArgs():
     warmup: bool=True
     warmup_iter: int=1000
     save_every: int=1
-    work_dir: str
+    work_dir: str=None
     
 
 class Trainer:

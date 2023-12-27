@@ -35,6 +35,10 @@ class OutfitTransformer(nn.Module):
             nn.Dropout(0.3),
             nn.Linear(embedding_dim, embedding_dim)
             )
+        
+        self.elu = nn.ELU()
+        self.fc_image = nn.Linear(embedding_dim, embedding_dim // 2)
+        self.fc_text = nn.Linear(embedding_dim, embedding_dim // 2)
 
     def _reset_parameters(self):
         for p in self.parameters():
@@ -45,7 +49,7 @@ class OutfitTransformer(nn.Module):
         initrange = 0.1
         self.type_embedding.weight.data.uniform_(-initrange, initrange)
 
-    def forward(self, task, x, attention_mask):
+    def forward(self, task, x, attention_mask=None):
         if task == 'compatibility':
             compatibility_token = torch.LongTensor([[0] for _ in range(len(x))]).to(x.device)
             compatibility_embed = self.type_embedding(compatibility_token)
@@ -59,9 +63,8 @@ class OutfitTransformer(nn.Module):
             y = F.sigmoid(self.fc_classifier(y))
         
         else:
-            y = self.transformer(x, src_key_padding_mask=attention_mask)
+            y = self.transformer(x, src_key_padding_mask=attention_mask.bool())
             y = y[:, 0, :]
             y = self.fc_embed(y)
-            #y = F.normalize(y, p=2, dim=1)
         
         return y
