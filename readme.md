@@ -13,7 +13,7 @@ Implementation of paper - [Outfit Transformer: Outfit Representations for Fashio
 |SCE-Net|0.91|
 |CSA-Net|0.91|
 |OutfitTransformer(Paper)|0.93|
-|**OutfitTransformer(Implemented)**|**?**|
+|**OutfitTransformer(Implemented)**|**0.91**|
 
 ### FITB(Fill in The Blank)
 |Model|AUC|
