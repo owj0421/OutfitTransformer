@@ -38,7 +38,7 @@ def triplet_margin_loss_with_multiple_negatives(
 def focal_loss(
         y_prob: torch.Tensor,
         y_true: torch.Tensor,
-        alpha: float = 0.5,
+        alpha: float = 0.75,
         gamma: float = 2,
         reduction: str = "mean",
         ) -> torch.Tensor:
