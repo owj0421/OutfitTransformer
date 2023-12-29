@@ -4,8 +4,7 @@
 
 ## 🤗 Introduction
 Implementation of paper - [Outfit Transformer: Outfit Representations for Fashion Recommendation](https://arxiv.org/abs/2204.04812)
-
-Trained on a single NVIDIA A100 with 80GB memory.
+![화면 캡처 2023-12-29 184524](https://github.com/owj0421/outfit-transformer/assets/98876272/c5679a08-6481-4d25-b488-6e5224b8aba0)
 
 ## 🎯 Performance
 |Model|CP(AUC)|FITB(Accuracy)|CIR(Recall@10)|
@@ -35,6 +34,7 @@ python train.py --train_task cp --valid_task fitb --train_batch 64 --valid_batch
 ```
 python train.py --train_task cir --valid_task cir --train_batch 48 --valid_batch 96 --n_epochs 2 --learning_rate 5e-5 --scheduler_step_size 100 --work_dir $WORK_DIR --data_dir $DATA_DIR --wandb_api_key $WANDB_API_KEY --checkpoint $CHECKPOINT
 ```
+Checkpoint is trained on single NVIDIA A100 with 80GB memory.
 
 ## 🔍 Test
 ```
