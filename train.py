@@ -23,7 +23,8 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # Parser
 parser = argparse.ArgumentParser(description='Outfit-Transformer Trainer')
-parser.add_argument('--task', help='compatibility, fitb', type=str, default='compatibility')
+parser.add_argument('--train_task', help='cp, sampling', type=str, default='cp')
+parser.add_argument('--valid_task', help='cp, fitb, sampling', type=str, default='fitb')
 parser.add_argument('--train_batch', help='Size of Batch for Training', type=int, default=48)
 parser.add_argument('--valid_batch', help='Size of Batch for Validation, Test', type=int, default=64)
 parser.add_argument('--n_epochs', help='Number of epochs', type=int, default=5)
@@ -31,27 +32,30 @@ parser.add_argument('--scheduler_step_size', help='Step LR', type=int, default=1
 parser.add_argument('--learning_rate', help='Learning rate', type=float, default=1e-5)
 parser.add_argument('--work_dir', help='Full working directory', type=str, required=True)
 parser.add_argument('--data_dir', help='Full dataset directory', type=str, required=True)
-parser.add_argument('--wandb_api_key', required=True)
+parser.add_argument('--wandb_api_key', default=None)
 parser.add_argument('--checkpoint', default=None)
 args = parser.parse_args()
 
 # Wandb
-os.environ["WANDB_API_KEY"] = args.wandb_api_key
-os.environ["WANDB_PROJECT"] = f"outfit-transformer-{args.task}"
-os.environ["WANDB_LOG_MODEL"] = "all"
-wandb.login()
-run = wandb.init()
+if args.wandb_api_key:
+    os.environ["WANDB_API_KEY"] = args.wandb_api_key
+    os.environ["WANDB_PROJECT"] = f"outfit-transformer-{args.valid_task}"
+    os.environ["WANDB_LOG_MODEL"] = "all"
+    wandb.login()
+    run = wandb.init()
 
 # Setup
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 training_args = TrainingArgs(
-    task=args.task,
+    train_task=args.train_task,
+    valid_task=args.valid_task,
     train_batch=args.train_batch,
     valid_batch=args.valid_batch,
     n_epochs=args.n_epochs,
     learning_rate=args.learning_rate,
-    work_dir = args.work_dir
+    work_dir = args.work_dir,
+    use_wandb = True if args.wandb_api_key else False
     )
     
 dataset_args = DatasetArgs(
@@ -68,8 +72,8 @@ train_transform = A.Compose([
     ToTensorV2()
     ])
 
-train_dataset = PolyvoreDataset(dataset_args, task=training_args.task, dataset_type='train', train_transform=train_transform)
-valid_dataset = PolyvoreDataset(dataset_args, task=training_args.task, dataset_type='valid', train_transform=train_transform)
+train_dataset = PolyvoreDataset(dataset_args, task=training_args.train_task, dataset_type='train', train_transform=train_transform)
+valid_dataset = PolyvoreDataset(dataset_args, task=training_args.valid_task, dataset_type='valid', train_transform=train_transform)
 train_dataloader = DataLoader(train_dataset, training_args.train_batch, shuffle=True)
 valid_dataloader = DataLoader(valid_dataset, training_args.valid_batch, shuffle=False)
 print('[COMPLETE] Build Dataset')
@@ -87,6 +91,7 @@ trainer = Trainer(model, encoder, train_dataloader, valid_dataloader,
 if args.checkpoint != None:
     checkpoint = args.checkpoint
     trainer.load(checkpoint, load_optim=False)
+    print(f'[COMPLETE] Load Model from {checkpoint}')
 
 # Train
-trainer.train()
+trainer.fit()

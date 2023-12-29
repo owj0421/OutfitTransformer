@@ -1,7 +1,5 @@
 import torch
 import torch.nn as nn
-import numpy as np
-from torch.autograd import Variable
 import torch.nn.functional as F
 
 
@@ -18,27 +16,21 @@ class OutfitTransformer(nn.Module):
 
         # fc layer for pretraining
         self.fc_classifier = nn.Sequential(
-            nn.ELU(),
+            nn.LeakyReLU(),
             nn.Dropout(0.3),
             nn.Linear(embedding_dim, embedding_dim),
-            nn.ELU(),
+            nn.LeakyReLU(),
             nn.Dropout(0.3),
             nn.Linear(embedding_dim, 1)
             )
         
         # fc layer for finetuning
         self.fc_embed = nn.Sequential(
-            nn.ELU(),
-            nn.Dropout(0.3),
+            nn.LeakyReLU(),
             nn.Linear(embedding_dim, embedding_dim),
-            nn.ELU(),
-            nn.Dropout(0.3),
+            nn.LeakyReLU(),
             nn.Linear(embedding_dim, embedding_dim)
             )
-        
-        self.elu = nn.ELU()
-        self.fc_image = nn.Linear(embedding_dim, embedding_dim // 2)
-        self.fc_text = nn.Linear(embedding_dim, embedding_dim // 2)
 
     def _reset_parameters(self):
         for p in self.parameters():
@@ -50,7 +42,7 @@ class OutfitTransformer(nn.Module):
         self.type_embedding.weight.data.uniform_(-initrange, initrange)
 
     def forward(self, task, x, attention_mask=None):
-        if task == 'compatibility':
+        if task == 'cp':
             compatibility_token = torch.LongTensor([[0] for _ in range(len(x))]).to(x.device)
             compatibility_embed = self.type_embedding(compatibility_token)
             x = torch.cat([compatibility_embed, x], dim=1)

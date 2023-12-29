@@ -1,5 +1,4 @@
 import os
-import os.path
 from torch.utils.data import Dataset
 import numpy as np
 import random
@@ -18,17 +17,18 @@ class DatasetArgs():
     polyvore_split: str='nondisjoint'
     max_token_len: int=16
     img_size: int=224
-    huggingface_tokenizer: str='sentence-transformers/paraphrase-albert-small-v2'
+    use_pretrined_tokenizer: bool=True
 
 
 class PolyvoreDataset(Dataset):
     def __init__(
             self,
             args: DatasetArgs,
-            task: str='compatibility',
+            task: str='cp',
             dataset_type: str='train',
             train_transform=None,
             ):
+        
         # Dataset configurations
         self.task = task
         self.is_train = (dataset_type == 'train')
@@ -45,15 +45,17 @@ class PolyvoreDataset(Dataset):
         self.compatibility_path = os.path.join(self.data_dir, f'compatibility_{self.dataset_type}.txt')
         
         # Image Data Configurations
-        self.train_transform = train_transform
         self.transform = A.Compose([
             A.Resize(args.img_size, args.img_size),
             A.Normalize(),
             ToTensorV2()
             ])
+        self.train_transform = train_transform if train_transform else self.transform
         
         # Text data configurations
-        self.tokenizer = AutoTokenizer.from_pretrained(args.huggingface_tokenizer)
+        self.use_pretrined_tokenizer = args.use_pretrined_tokenizer
+        if self.use_pretrined_tokenizer:
+            self.tokenizer = AutoTokenizer.from_pretrained('sentence-transformers/paraphrase-albert-small-v2')
 
         # Data preprocessing
         outfit_data = json.load(open(self.outfit_data_path))
@@ -105,42 +107,41 @@ class PolyvoreDataset(Dataset):
         query_img = self.transform(image=query_img)['image']
         self.query_img = query_img
 
-        # For Pretrain
-        # Compatibility Question
-        if self.task == 'compatibility':
+        # For Compatibility Question
+        if self.task == 'cp':
             with open(self.compatibility_path, 'r') as f:
                 compatibility_data = f.readlines()
                 self.data = []
                 for d in compatibility_data:
                     y, *items = d.split()
                     self.data.append((int(y), list(map(lambda x: self.outfit_id2item_id[x], items))))
-        # For fine-tuning
+        # For FITB Question
+        elif self.task == 'fitb':
+            with open(self.fitb_path, 'r') as f:
+                fitb_data = json.load(f)
+                questions = []
+                for item in fitb_data:
+                    question_ids = list(map(lambda x: self.outfit_id2item_id[x], item['question']))
+                    candidate_ids = list(map(lambda x: self.outfit_id2item_id[x], item['answers']))
+                    ans_idx = 0
+                    questions.append((question_ids, candidate_ids, ans_idx))
+            self.data = questions
+        # For Triplet Learning
         else:
-            # Complete outfit combination
-            if self.is_train:
-                self.data = [[outfit['items'][i]['item_id'] for i in range(len(outfit['items']))] for outfit in outfit_data]
-                self.data = list(filter(lambda x: len(x) > 1, self.data))
-            # FITB Question for test ans validation splits
-            else:
-                with open(self.fitb_path, 'r') as f:
-                    fitb_data = json.load(f)
-                    questions = []
-                    for item in fitb_data:
-                        question_ids = list(map(lambda x: self.outfit_id2item_id[x], item['question']))
-                        candidate_ids = list(map(lambda x: self.outfit_id2item_id[x], item['answers']))
-                        ans_idx = 0
-                        questions.append((question_ids, candidate_ids, ans_idx))
-                self.data = questions
+            self.data = [[outfit['items'][i]['item_id'] for i in range(len(outfit['items']))] for outfit in outfit_data]
+            self.data = list(filter(lambda x: len(x) > 1, self.data))            
+               
 
     def _load_img(self, path):
         img = cv2.imread(path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        if self.is_train and self.train_transform:
+        if self.is_train:
             img = self.train_transform(image=img)['image']
         else:
             img = self.transform(image=img)['image']
         return img
-    
+
+
     def _get_item(self, item_id):
         img_path = os.path.join(self.img_dir, f"{item_id}.jpg")
         img = self._load_img(img_path)
@@ -151,9 +152,13 @@ class PolyvoreDataset(Dataset):
             desc = "cloth"
         return img, desc
 
+
     def _preprocess_desc(self, desc):
-        input_ids, _, attention_mask, *_  = self.tokenizer(desc, max_length=self.max_token_len, padding='max_length', truncation=True, return_tensors='pt').values()
+        input_ids, attention_mask = None, None
+        if self.use_pretrined_tokenizer:
+            input_ids, _, attention_mask, *_  = self.tokenizer(desc, max_length=self.max_token_len, padding='max_length', truncation=True, return_tensors='pt').values()
         return input_ids, attention_mask
+    
 
     def _preprocess_items(self, set_, pad=False):
         if pad:
@@ -166,6 +171,7 @@ class PolyvoreDataset(Dataset):
 
         return  set_mask.bool() if pad else None, img, input_ids, attention_mask
     
+
     def _sample_neg(self, pos_id, n, same_category=False, ignore_ids=None):
         if same_category:
             pos_category = self.item_id2category[pos_id]
@@ -175,58 +181,59 @@ class PolyvoreDataset(Dataset):
             pool = set(self.item_ids) - set(ignore_ids)
             return  random.sample(pool, n)
 
+
     def __getitem__(self, idx):
-        if self.task == 'compatibility':
+        if self.task == 'cp':
             y, inputs = self.data[idx]
             y = torch.FloatTensor([y])
             inputs = [self._get_item(i) for i in inputs]
             set_mask, img, input_ids, attention_mask = self._preprocess_items(inputs, pad=True)
 
             return y, set_mask, img, input_ids, attention_mask
+        
+        elif self.task =='fitb':
+            question_ids, candidate_ids, ans_idx = self.data[idx]
 
-        else:
-            if self.is_train:
-                anchor_ids = self.data[idx]
-                anchor_items = [self._get_item(item_id) for item_id in anchor_ids]
+            question_items = [self._get_item(item_id) for item_id in question_ids]
+            query_item = (self.query_img, self.item_id2category[candidate_ids[ans_idx]])
+            question_items = [query_item] + question_items
 
-                pos_idx = np.random.choice(range(len(anchor_ids)))
-                pos_id = anchor_ids[pos_idx]
-                pos_item = [anchor_items[pos_idx]]
-                del anchor_items[pos_idx]
+            candidate_items = [self._get_item(item_id) for item_id in candidate_ids]
 
-                query_item = (self.query_img, self.item_id2category[pos_id])
-                input_items = [query_item] + anchor_items # Transformer input
+            question_set_mask, question_img, question_input_ids, question_attention_mask = self._preprocess_items(question_items, pad=True)
+            _, candidate_img, candidate_input_ids, candidate_attention_mask = self._preprocess_items(candidate_items, pad=False)
+            ans_idx = torch.FloatTensor([ans_idx])
 
-                hard_neg_ids = self._sample_neg(pos_id=pos_id, n=6, same_category=True, ignore_ids=anchor_ids)
-                soft_neg_ids = self._sample_neg(pos_id=pos_id, n=4, same_category=False, ignore_ids=anchor_ids)
-                neg_ids = hard_neg_ids + soft_neg_ids
+            return  question_set_mask, question_img, question_input_ids, question_attention_mask,\
+                candidate_img, candidate_input_ids, candidate_attention_mask,\
+                ans_idx
+        
+        else: # Random sampling
+            anchor_ids = self.data[idx]
+            anchor_items = [self._get_item(item_id) for item_id in anchor_ids]
+
+            pos_idx = np.random.choice(range(len(anchor_ids)))
+            pos_id = anchor_ids[pos_idx]
+            pos_item = [anchor_items[pos_idx]]
+            del anchor_items[pos_idx]
+
+            query_item = (self.query_img, self.item_id2category[pos_id])
+            input_items = [query_item] + anchor_items
+
+            hard_neg_ids = self._sample_neg(pos_id=pos_id, n=6, same_category=True, ignore_ids=anchor_ids)
+            soft_neg_ids = self._sample_neg(pos_id=pos_id, n=4, same_category=False, ignore_ids=anchor_ids)
+            neg_ids = hard_neg_ids + soft_neg_ids
                 
-                neg_items = [self._get_item(neg_id) for neg_id in neg_ids]
+            neg_items = [self._get_item(neg_id) for neg_id in neg_ids]
             
-                input_set_mask, input_img, input_input_ids, input_attention_mask = self._preprocess_items(input_items, pad=True)
-                _, pos_img, pos_input_ids, pos_attention_mask = self._preprocess_items(pos_item, pad=False)
-                _, neg_img, neg_input_ids, neg_attention_mask = self._preprocess_items(neg_items, pad=False)
+            input_set_mask, input_img, input_input_ids, input_attention_mask = self._preprocess_items(input_items, pad=True)
+            _, pos_img, pos_input_ids, pos_attention_mask = self._preprocess_items(pos_item, pad=False)
+            _, neg_img, neg_input_ids, neg_attention_mask = self._preprocess_items(neg_items, pad=False)
                 
-                return input_set_mask, input_img, input_input_ids, input_attention_mask,\
-                    pos_img, pos_input_ids, pos_attention_mask,\
-                    neg_img, neg_input_ids, neg_attention_mask
-
-            else:
-                question_ids, candidate_ids, ans_idx = self.data[idx]
-
-                question_items = [self._get_item(item_id) for item_id in question_ids]
-                query_item = (self.query_img, self.item_id2category[candidate_ids[ans_idx]])
-                question_items = [query_item] + question_items
-
-                candidate_items = [self._get_item(item_id) for item_id in candidate_ids]
-
-                question_set_mask, question_img, question_input_ids, question_attention_mask = self._preprocess_items(question_items, pad=True)
-                _, candidate_img, candidate_input_ids, candidate_attention_mask = self._preprocess_items(candidate_items, pad=False)
-                ans_idx = torch.FloatTensor([ans_idx])
-
-                return  question_set_mask, question_img, question_input_ids, question_attention_mask,\
-                    candidate_img, candidate_input_ids, candidate_attention_mask,\
-                    ans_idx
+            return input_set_mask, input_img, input_input_ids, input_attention_mask,\
+                pos_img, pos_input_ids, pos_attention_mask,\
+                neg_img, neg_input_ids, neg_attention_mask
+                
 
     def __len__(self):
         return len(self.data)
