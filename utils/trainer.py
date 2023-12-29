@@ -7,20 +7,10 @@ from itertools import chain
 from datetime import datetime
 from dataclasses import dataclass
 import torch
+from torch.utils.data import DataLoader
 from .loss import *
-
-
-@dataclass
-class TrainingArgs():
-    train_task: str='cp'
-    valid_task: str='fitb'
-    train_batch: int=8
-    valid_batch: int=32
-    n_epochs: int=100
-    learning_rate: float=0.01
-    save_every: int=1
-    work_dir: str=None
-    use_wandb: bool=False
+from .metric import *
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 
 def cp_iteration(model, encoder, dataloader, epoch, is_train, device, metric, optimizer=None, scheduler=None, use_wandb=False):
@@ -59,7 +49,8 @@ def cp_iteration(model, encoder, dataloader, epoch, is_train, device, metric, op
             loss.backward()
             torch.nn.utils.clip_grad_norm_(chain(model.parameters(), encoder.parameters()), 5)
             optimizer.step()
-            scheduler.step()
+            if scheduler:
+                scheduler.step()
         
         if use_wandb:
             log = {
@@ -80,7 +71,8 @@ def cp_iteration(model, encoder, dataloader, epoch, is_train, device, metric, op
     acc = metric.calc_acc()
     auc = metric.calc_auc()
     metric.clean()
-    return loss, acc, auc
+    print( f'END {type_str} -> | Epoch: {epoch + 1:03} | loss: {loss:.5f} | Acc: {acc:.5f} | Auc: {auc:.5f}')
+    return loss if is_train else auc
     
 
 def fitb_iteration(model, encoder, dataloader, epoch, is_train, device, metric, optimizer=None, scheduler=None, use_wandb=False):
@@ -129,7 +121,8 @@ def fitb_iteration(model, encoder, dataloader, epoch, is_train, device, metric, 
             loss.backward()
             torch.nn.utils.clip_grad_norm_(chain(model.parameters(), encoder.parameters()), 5)
             optimizer.step()
-            scheduler.step()
+            if scheduler:
+                scheduler.step()
         
         if use_wandb:
             log = {
@@ -149,7 +142,8 @@ def fitb_iteration(model, encoder, dataloader, epoch, is_train, device, metric, 
     loss = losses / iter
     acc = metric.calc_acc()
     metric.clean()
-    return loss, acc
+    print( f'END {type_str} -> | Epoch: {epoch + 1:03} | loss: {loss:.5f} | Acc: {acc:.5f}')
+    return loss if is_train else acc
 
 
 def triplet_iteration(model, encoder, dataloader, epoch, is_train, device, metric, optimizer=None, scheduler=None, use_wandb=False):
@@ -197,7 +191,8 @@ def triplet_iteration(model, encoder, dataloader, epoch, is_train, device, metri
             loss.backward()
             torch.nn.utils.clip_grad_norm_(chain(model.parameters(), encoder.parameters()), 5)
             optimizer.step()
-            scheduler.step()
+            if scheduler:
+                scheduler.step()
         
         if use_wandb:
             log = {
@@ -214,100 +209,119 @@ def triplet_iteration(model, encoder, dataloader, epoch, is_train, device, metri
                 )
         
     loss = losses / iter
+    print( f'END {type_str} -> | Epoch: {epoch + 1:03} | loss: {loss:.5f}')
     return loss
 
 
+@dataclass
+class TrainingArguments:
+    train_task: str='cp'
+    valid_task: str='fitb'
+    train_batch: int=8
+    valid_batch: int=32
+    n_epochs: int=100
+    learning_rate: float=0.01
+    save_every: int=1
+    work_dir: str=None
+    use_wandb: bool=False
+    device: str='cuda'
+
+
 class Trainer:
-    def __init__(self, model, encoder, train_dataloader, valid_dataloader, optimizer, scheduler, metric, device, args):
-        self.train_task = args.train_task
-        self.valid_task = args.valid_task
+    def __init__(
+            self,
+            args: TrainingArguments,
+            model: nn.Module,
+            encoder: nn.Module,
+            train_dataloader: DataLoader,
+            valid_dataloader: DataLoader,
+            optimizer: torch.optim.Optimizer,
+            metric: MetricCalculator,
+            scheduler: Optional[torch.optim.lr_scheduler.StepLR] = None
+            ):
+        self.device = torch.device(args.device)
 
         self.model = model
+        self.model.to(self.device)
         self.encoder = encoder
+        self.encoder.to(self.device)
         self.optimizer = optimizer
         self.train_dataloader = train_dataloader
         self.valid_dataloader = valid_dataloader
         self.scheduler = scheduler
-        self.device = device
-        self.args = args
-
-        self.model.to(self.device)
-        self.encoder.to(self.device)
-        
         self.metric = metric
-
-        self.best_model_state = None
-        self.best_encoder_state = None
-        self.best_optimizer_state = None
-
+        self.args = args
+        self.train_task = args.train_task
+        self.valid_task = args.valid_task
+        self.best_state = {}
 
     def fit(self):
         best_criterion = -np.inf
         for epoch in range(self.args.n_epochs):
-            train_loss = self._train(self.train_dataloader, epoch)
-            criterion = self._validate(self.valid_dataloader, epoch)
+            loss = self._train(epoch, self.train_dataloader)
+            criterion = self._validate(epoch, self.valid_dataloader)
 
-            if criterion >= best_criterion:
+            if criterion > best_criterion:
                best_criterion = criterion
-               self.best_model_state = deepcopy(self.model.state_dict())
-               self.best_encoder_state = deepcopy(self.encoder.state_dict())
+               self.best_state['model'] = deepcopy(self.model.state_dict()).to("cpu")
+               self.best_state['encoder'] = deepcopy(self.encoder.state_dict()).to("cpu")
 
             if epoch % self.args.save_every == 0:
                 date = datetime.now().strftime('%Y-%m-%d')
+                output_dir = os.path.join(self.args.work_dir, 'checkpoints', self.valid_task, date)
                 model_name = f'{epoch}_{best_criterion:.3f}'
-                save_dir = os.path.join(self.args.work_dir, 'checkpoints', self.valid_task, date)
-                self.save(save_dir, model_name)
+                self._save(output_dir, model_name)
 
 
-    def _train(self, dataloader, epoch):
+    def _train(self, epoch: int, dataloader: DataLoader):
         self.encoder.train()
         self.model.train()
         is_train=True
 
         if self.train_task=='cp':
-            loss, acc, auc = cp_iteration(self.model, self.encoder, dataloader, epoch, is_train, self.device, self.metric, self.optimizer, self.scheduler, self.args.use_wandb)
+            loss = cp_iteration(self.model, self.encoder, dataloader, epoch, is_train, self.device, self.metric, self.optimizer, self.scheduler, self.args.use_wandb)
         elif self.train_task=='fitb':
-            loss, acc = fitb_iteration(self.model, self.encoder, dataloader, epoch, is_train, self.device, self.metric, self.optimizer, self.scheduler, self.args.use_wandb)
+            loss = fitb_iteration(self.model, self.encoder, dataloader, epoch, is_train, self.device, self.metric, self.optimizer, self.scheduler, self.args.use_wandb)
         else:
-            loss  = triplet_iteration(self.model, self.encoder, dataloader, epoch, is_train, self.device, self.metric, self.optimizer, self.scheduler, self.args.use_wandb)
+            loss = triplet_iteration(self.model, self.encoder, dataloader, epoch, is_train, self.device, self.metric, self.optimizer, self.scheduler, self.args.use_wandb)
         return loss
 
 
     @torch.no_grad()
-    def _validate(self, dataloader, epoch):
-        self.encoder.train()
-        self.model.train()
+    def _validate(self, epoch: int, dataloader: DataLoader):
+        self.encoder.eval()
+        self.model.eval()
         is_train=False
 
         if self.valid_task=='cp':
-            loss, acc, auc = cp_iteration(self.model, self.encoder, dataloader, epoch, is_train, self.device, self.metric, self.optimizer, self.scheduler, self.args.use_wandb)
-            criterion = auc
+            criterion = cp_iteration(self.model, self.encoder, dataloader, epoch, is_train, self.device, self.metric, self.optimizer, self.scheduler, self.args.use_wandb)
         elif self.valid_task=='fitb':
-            loss, acc = fitb_iteration(self.model, self.encoder, dataloader, epoch, is_train, self.device, self.metric, self.optimizer, self.scheduler, self.args.use_wandb)
-            criterion = acc
+            criterion = fitb_iteration(self.model, self.encoder, dataloader, epoch, is_train, self.device, self.metric, self.optimizer, self.scheduler, self.args.use_wandb)
         else:
-            loss  = triplet_iteration(self.model, self.encoder, dataloader, epoch, is_train, self.device, self.metric, self.optimizer, self.scheduler, self.args.use_wandb)
-            criterion = -loss # Our goal is maximizing criterion.
+            # Our goal is maximizing criterion.
+            criterion = -triplet_iteration(self.model, self.encoder, dataloader, epoch, is_train, self.device, self.metric, self.optimizer, self.scheduler, self.args.use_wandb)
         return criterion
 
 
-    def save(self, dir, model_name, best_model: bool=True):
-        def create_folder(dir):
+    def _save(self, dir, model_name, best_model: bool=True):
+        def _create_folder(dir):
             try:
                 if not os.path.exists(dir):
                     os.makedirs(dir)
             except OSError:
                 print('[Error] Creating directory. ' + dir)
+        _create_folder(dir)
 
-        create_folder(dir)
+        self.model.to("cpu")
         path = os.path.join(dir, f'{model_name}.pth')
         checkpoint = {
-            'model_state_dict': self.best_model_state if best_model else self.model.state_dict(),
-            'encoder_state_dict': self.best_encoder_state if best_model else self.encoder.state_dict(),
+            'model_state_dict': self.best_state['model'] if best_model else self.model.state_dict(),
+            'encoder_state_dict': self.best_state['encoder'] if best_model else self.encoder.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'scheduler_state_dict': self.scheduler.state_dict()
             }
         torch.save(checkpoint, path)
+        self.model.to(self.device)
         print(f'[COMPLETE] Save at {path}')
 
 

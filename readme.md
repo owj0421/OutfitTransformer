@@ -38,7 +38,7 @@ python train.py --train_task cir --valid_task cir --train_batch 48 --valid_batch
 
 ## 🔍 Test
 ```
-python test.py --task $TASK --work_dir $WORK_DIR --data_dir $DATA_DIR --checkpoint $CHECKPOINT
+python test.py --test_task $TASK --work_dir $WORK_DIR --data_dir $DATA_DIR --checkpoint $CHECKPOINT
 ```
 
 ## 🧶 Demo

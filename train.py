@@ -12,14 +12,13 @@ from albumentations.pytorch import ToTensorV2
 
 from model.model import *
 from model.encoder import ItemEncoder
-from utils.trainer import Trainer, TrainingArgs
-from utils.dataset import PolyvoreDataset, DatasetArgs
+from utils.trainer import *
+from utils.dataset import *
 from utils.metric import MetricCalculator
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
-
 
 # Parser
 parser = argparse.ArgumentParser(description='Outfit-Transformer Trainer')
@@ -47,7 +46,7 @@ if args.wandb_api_key:
 # Setup
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-training_args = TrainingArgs(
+training_args = TrainingArguments(
     train_task=args.train_task,
     valid_task=args.valid_task,
     train_batch=args.train_batch,
@@ -58,35 +57,50 @@ training_args = TrainingArgs(
     use_wandb = True if args.wandb_api_key else False
     )
     
-dataset_args = DatasetArgs(
-    work_dir=args.work_dir, 
-    data_dir=args.data_dir
+train_dataset_args = DatasetArguments(
+    polyvore_split = 'nondisjoint',
+    task_type = args.train_task,
+    dataset_type = 'train',
+    img_size = 224,
+    use_pretrined_tokenizer = True,
+    max_token_len = 16,
+    custom_transform = A.Compose([
+        A.Resize(230, 230),
+        A.HorizontalFlip(),
+        A.RandomResizedCrop(scale=(0.85, 1.05), height=224, width=224, always_apply=True, p=1),
+        A.Rotate(limit=15, p=0.5),
+        A.Normalize(),
+        ToTensorV2()
+        ])
     )
 
-train_transform = A.Compose([
-    A.Resize(230, 230),
-    A.HorizontalFlip(),
-    A.RandomResizedCrop(scale=(0.85, 1.05), height=dataset_args.img_size, width=dataset_args.img_size, always_apply=True, p=1),
-    A.Rotate(limit=15, p=0.5),
-    A.Normalize(),
-    ToTensorV2()
-    ])
+valid_dataset_args = DatasetArguments(
+    polyvore_split = 'nondisjoint',
+    task_type = args.valid_task,
+    dataset_type = 'train',
+    img_size = 224,
+    use_pretrined_tokenizer = True,
+    max_token_len = 16,
+    custom_transform = None
+    )
 
-train_dataset = PolyvoreDataset(dataset_args, task=training_args.train_task, dataset_type='train', train_transform=train_transform)
-valid_dataset = PolyvoreDataset(dataset_args, task=training_args.valid_task, dataset_type='valid', train_transform=train_transform)
+train_dataset = PolyvoreDataset(args.work_dir, args.data_dir, train_dataset_args)
+valid_dataset = PolyvoreDataset(args.work_dir, args.data_dir, valid_dataset_args)
 train_dataloader = DataLoader(train_dataset, training_args.train_batch, shuffle=True)
 valid_dataloader = DataLoader(valid_dataset, training_args.valid_batch, shuffle=False)
-print('[COMPLETE] Build Dataset')
+print('[COMPLETE] Build Dataset, DataLoader')
+
 encoder = ItemEncoder(embedding_dim=128).to(device)
 print('[COMPLETE] Build Encoder')
+
 model = OutfitTransformer(embedding_dim=128).to(device)
 print('[COMPLETE] Build Model')
 
 optimizer = AdamW(chain(model.parameters(), encoder.parameters()), lr=training_args.learning_rate,)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.scheduler_step_size, gamma=0.5)
 metric = MetricCalculator()
-trainer = Trainer(model, encoder, train_dataloader, valid_dataloader,
-                  optimizer=optimizer, scheduler=scheduler, metric=metric, device=device, args=training_args)
+trainer = Trainer(training_args, model, encoder, train_dataloader, valid_dataloader,
+                  optimizer=optimizer, metric=metric , scheduler=scheduler)
 
 if args.checkpoint != None:
     checkpoint = args.checkpoint

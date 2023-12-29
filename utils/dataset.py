@@ -9,40 +9,40 @@ from dataclasses import dataclass
 import cv2
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+
 
 @dataclass
-class DatasetArgs():
-    work_dir: str
-    data_dir: str
-    polyvore_split: str='nondisjoint'
-    max_token_len: int=16
-    img_size: int=224
-    use_pretrined_tokenizer: bool=True
+class DatasetArguments:
+    polyvore_split: str = 'nondisjoint'
+    task_type: str = 'cp'
+    dataset_type: str = 'train'
+    img_size: int = 224
+    use_pretrined_tokenizer: Optional[bool] = True
+    max_token_len: Optional[int] = None
+    custom_transform: Optional[A.Compose] = None
 
 
 class PolyvoreDataset(Dataset):
     def __init__(
             self,
-            args: DatasetArgs,
-            task: str='cp',
-            dataset_type: str='train',
-            train_transform=None,
+            work_dir: str,
+            data_dir: str,
+            args: DatasetArguments,
             ):
-        
+
         # Dataset configurations
-        self.task = task
-        self.is_train = (dataset_type == 'train')
-        self.dataset_type = dataset_type # train, test, val
-        self.img_size = args.img_size
-        self.max_token_len = args.max_token_len
+        self.args = args
+        self.is_train = (args.dataset_type == 'train')
 
         # Path configurations
-        self.data_dir = os.path.join(args.data_dir, args.polyvore_split)
-        self.img_dir = os.path.join(args.data_dir, 'images')
-        self.meta_data_path = os.path.join(args.data_dir, 'polyvore_item_metadata.json')
-        self.outfit_data_path = os.path.join(self.data_dir, f'{dataset_type}.json')
-        self.fitb_path = os.path.join(self.data_dir,  f'fill_in_blank_{self.dataset_type}.json')
-        self.compatibility_path = os.path.join(self.data_dir, f'compatibility_{self.dataset_type}.txt')
+        self.work_dir = work_dir
+        self.data_dir = os.path.join(data_dir, args.polyvore_split)
+        self.img_dir = os.path.join(data_dir, 'images')
+        self.meta_data_path = os.path.join(data_dir, 'polyvore_item_metadata.json')
+        self.outfit_data_path = os.path.join(data_dir, args.polyvore_split, f'{args.dataset_type}.json')
+        self.fitb_path = os.path.join(data_dir, args.polyvore_split, f'fill_in_blank_{args.dataset_type}.json')
+        self.compatibility_path = os.path.join(data_dir, args.polyvore_split, f'compatibility_{args.dataset_type}.txt')
         
         # Image Data Configurations
         self.transform = A.Compose([
@@ -50,11 +50,10 @@ class PolyvoreDataset(Dataset):
             A.Normalize(),
             ToTensorV2()
             ])
-        self.train_transform = train_transform if train_transform else self.transform
+        self.train_transform = args.custom_transform if args.custom_transform else self.transform
         
         # Text data configurations
-        self.use_pretrined_tokenizer = args.use_pretrined_tokenizer
-        if self.use_pretrined_tokenizer:
+        if self.args.use_pretrined_tokenizer:
             self.tokenizer = AutoTokenizer.from_pretrained('sentence-transformers/paraphrase-albert-small-v2')
 
         # Data preprocessing
@@ -99,16 +98,16 @@ class PolyvoreDataset(Dataset):
         self.outfit_id2item_id = outfit_id2item_id
 
         # Pseudo item to pad outfit sequence
-        self.pad_item = [torch.zeros((3, self.img_size, self.img_size), dtype=torch.float32), 'PAD']
+        self.pad_item = [torch.zeros((3, args.img_size, args.img_size), dtype=torch.float32), 'PAD']
         
         # Query image for Transformer input
-        query_img = cv2.imread(os.path.join(args.work_dir, 'data', 'query_img.jpg'))
+        query_img = cv2.imread(os.path.join(work_dir, 'data', 'query_img.jpg'))
         query_img = cv2.cvtColor(query_img, cv2.COLOR_BGR2RGB)
         query_img = self.transform(image=query_img)['image']
         self.query_img = query_img
 
         # For Compatibility Question
-        if self.task == 'cp':
+        if args.task_type == 'cp':
             with open(self.compatibility_path, 'r') as f:
                 compatibility_data = f.readlines()
                 self.data = []
@@ -116,7 +115,7 @@ class PolyvoreDataset(Dataset):
                     y, *items = d.split()
                     self.data.append((int(y), list(map(lambda x: self.outfit_id2item_id[x], items))))
         # For FITB Question
-        elif self.task == 'fitb':
+        elif args.task_type == 'fitb':
             with open(self.fitb_path, 'r') as f:
                 fitb_data = json.load(f)
                 questions = []
@@ -149,14 +148,14 @@ class PolyvoreDataset(Dataset):
         if item_id in self.item_id2desc:
             desc = self.item_id2desc[item_id]
         else:
-            desc = "cloth"
+            desc = self.item_id2category[item_id]
         return img, desc
 
 
     def _preprocess_desc(self, desc):
         input_ids, attention_mask = None, None
-        if self.use_pretrined_tokenizer:
-            input_ids, _, attention_mask, *_  = self.tokenizer(desc, max_length=self.max_token_len, padding='max_length', truncation=True, return_tensors='pt').values()
+        if self.args.use_pretrined_tokenizer:
+            input_ids, _, attention_mask, *_  = self.tokenizer(desc, max_length=self.args.max_token_len, padding='max_length', truncation=True, return_tensors='pt').values()
         return input_ids, attention_mask
     
 
@@ -183,7 +182,7 @@ class PolyvoreDataset(Dataset):
 
 
     def __getitem__(self, idx):
-        if self.task == 'cp':
+        if self.args.task_type == 'cp':
             y, inputs = self.data[idx]
             y = torch.FloatTensor([y])
             inputs = [self._get_item(i) for i in inputs]
@@ -191,7 +190,7 @@ class PolyvoreDataset(Dataset):
 
             return y, set_mask, img, input_ids, attention_mask
         
-        elif self.task =='fitb':
+        elif self.args.task_type =='fitb':
             question_ids, candidate_ids, ans_idx = self.data[idx]
 
             question_items = [self._get_item(item_id) for item_id in question_ids]
