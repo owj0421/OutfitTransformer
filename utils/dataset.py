@@ -216,7 +216,7 @@ class PolyvoreDataset(Dataset):
             pos_item = [anchor_items[pos_idx]]
             del anchor_items[pos_idx]
 
-            query_item = (self.query_img, self.item_id2category[pos_id])
+            query_item = (self.query_img, self.item_id2desc[pos_id])
             input_items = [query_item] + anchor_items
 
             hard_neg_ids = self._sample_neg(pos_id=pos_id, n=6, same_category=True, ignore_ids=anchor_ids)
