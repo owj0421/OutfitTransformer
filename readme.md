@@ -4,6 +4,7 @@
 
 ## 🤗 Introduction
 Implementation of paper - [Outfit Transformer: Outfit Representations for Fashion Recommendation](https://arxiv.org/abs/2204.04812)
+
 ![화면 캡처 2023-12-29 184524](https://github.com/owj0421/outfit-transformer/assets/98876272/c5679a08-6481-4d25-b488-6e5224b8aba0)
 
 ## 🎯 Performance
