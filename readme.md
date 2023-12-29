@@ -7,7 +7,7 @@ Implementation of paper - [Outfit Transformer: Outfit Representations for Fashio
 
 ## 🎯 Performance
 
-|Model|CP(AUC)|FITB(Acuracy)|CIR(Recall@10)|
+|Model|CP(AUC)|FITB(Accuracy)|CIR(Recall@10)|
 |:-|:-:|:-:|:-:|
 |Type-Aware|0.86|57.83|3.50|
 |SCE-Net|0.91|59.07|5.10|
