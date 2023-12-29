@@ -5,8 +5,9 @@
 ## 🤗 Introduction
 Implementation of paper - [Outfit Transformer: Outfit Representations for Fashion Recommendation](https://arxiv.org/abs/2204.04812)
 
+Trained on a single NVIDIA A100 with 80GB memory.
+
 ## 🎯 Performance
-Tested on a single NVIDIA A100 with 80GB memory.
 |Model|CP(AUC)|FITB(Accuracy)|CIR(Recall@10)|
 |:-|:-:|:-:|:-:|
 |Type-Aware|0.86|57.83|3.50|
