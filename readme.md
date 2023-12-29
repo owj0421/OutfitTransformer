@@ -6,7 +6,7 @@
 Implementation of paper - [Outfit Transformer: Outfit Representations for Fashion Recommendation](https://arxiv.org/abs/2204.04812)
 
 ## 🎯 Performance
-
+Tested on a single NVIDIA A100 with 80GB memory.
 |Model|CP(AUC)|FITB(Accuracy)|CIR(Recall@10)|
 |:-|:-:|:-:|:-:|
 |Type-Aware|0.86|57.83|3.50|
@@ -22,11 +22,10 @@ python -m pip install -r requirements.txt
 ```
 
 ## 🧱 Train
-Tested on a single NVIDIA A100 with 80GB memory.
 ### Data Preparation
 Download the polyvore dataset from [here](https://github.com/xthan/polyvore-dataset)
 
-### Pretraining on CP(Compatibiliby Prediction)s task
+### Pretraining on CP(Compatibiliby Prediction) task
 ```
 python train.py --train_task cp --valid_task fitb --train_batch 64 --valid_batch 96 --n_epochs 8 --learning_rate 1e-3 --work_dir $WORK_DIR --data_dir $DATA_DIR --wandb_api_key $WANDB_API_KEY
 ```
