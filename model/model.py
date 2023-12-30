@@ -25,10 +25,12 @@ class OutfitTransformer(nn.Module):
             )
         
         # fc layer for finetuning
-        self.fc_embed = nn.Sequential(
+        self.fc_embed_layer = nn.Sequential(
             nn.LeakyReLU(),
+            nn.Dropout(0.3),
             nn.Linear(embedding_dim, embedding_dim),
             nn.LeakyReLU(),
+            nn.Dropout(0.3),
             nn.Linear(embedding_dim, embedding_dim)
             )
 

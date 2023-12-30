@@ -1,5 +1,5 @@
 # model
-*.pth
+# *.pth
 
 # data
 *.jpg
@@ -7,7 +7,6 @@
 *.json
 
 # 수정하지 마세요.
-checkpoints
 __pycache__
 wandb
 inference

@@ -21,10 +21,10 @@ warnings.filterwarnings("ignore", category=UserWarning)
 # Parser
 parser = argparse.ArgumentParser(description='Outfit-Transformer Trainer')
 parser.add_argument('--test_task', help='cp, fitb', type=str, default='cp')
+parser.add_argument('--test_batch', type=int, default=4)
 parser.add_argument('--work_dir', help='Full working directory', type=str, required=True)
 parser.add_argument('--data_dir', help='Full dataset directory', type=str, required=True)
-parser.add_argument('--test_batch', type=int, default=4)
-parser.add_argument('--checkpoint', default=None)
+parser.add_argument('--checkpoint', default=None, required=True)
 args = parser.parse_args()
 
 # Setup
@@ -60,9 +60,9 @@ metric = MetricCalculator()
 encoder.eval()
 model.eval()
 with torch.no_grad():
-    if args.task=='cp':
+    if args.test_task=='cp':
         _, acc, auc = cp_iteration(model, encoder, test_dataloader, 0, is_train=False, device=device, metric=metric)
-        print(f'TEST | Task: {args.task} | acc: {acc:.5f} | auc: {auc:.5f}')
-    elif args.task=='fitb':
+        print(f'TEST | Task: {args.test_task} | acc: {acc:.5f} | auc: {auc:.5f}')
+    elif args.test_task=='fitb':
         _, acc = fitb_iteration(model, encoder, test_dataloader, 0, is_train=False, device=device, metric=metric)
-        print(f'TEST | Task: {args.task} | acc: {acc:.5f}')
+        print(f'TEST | Task: {args.test_task} | acc: {acc:.5f}')

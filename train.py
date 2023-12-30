@@ -65,10 +65,10 @@ train_dataset_args = DatasetArguments(
     use_pretrined_tokenizer = True,
     max_token_len = 16,
     custom_transform = A.Compose([
-        A.Resize(230, 230),
+        A.Resize(224, 224),
         A.HorizontalFlip(),
-        A.RandomResizedCrop(scale=(0.85, 1.05), height=224, width=224, always_apply=True, p=1),
-        A.Rotate(limit=15, p=0.5),
+        #A.RandomResizedCrop(scale=(0.90, 1.00), height=224, width=224, always_apply=True, p=1),
+        #A.Rotate(limit=15, p=0.5),
         A.Normalize(),
         ToTensorV2()
         ])
@@ -77,7 +77,7 @@ train_dataset_args = DatasetArguments(
 valid_dataset_args = DatasetArguments(
     polyvore_split = 'nondisjoint',
     task_type = args.valid_task,
-    dataset_type = 'train',
+    dataset_type = 'valid',
     img_size = 224,
     use_pretrined_tokenizer = True,
     max_token_len = 16,

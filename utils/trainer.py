@@ -260,11 +260,10 @@ class Trainer:
         for epoch in range(self.args.n_epochs):
             loss = self._train(epoch, self.train_dataloader)
             criterion = self._validate(epoch, self.valid_dataloader)
-
             if criterion > best_criterion:
                best_criterion = criterion
-               self.best_state['model'] = deepcopy(self.model.state_dict()).to("cpu")
-               self.best_state['encoder'] = deepcopy(self.encoder.state_dict()).to("cpu")
+               self.best_state['model'] = deepcopy(self.model.state_dict())
+               self.best_state['encoder'] = deepcopy(self.encoder.state_dict())
 
             if epoch % self.args.save_every == 0:
                 date = datetime.now().strftime('%Y-%m-%d')
@@ -309,10 +308,9 @@ class Trainer:
                 if not os.path.exists(dir):
                     os.makedirs(dir)
             except OSError:
-                print('[Error] Creating directory. ' + dir)
+                print('[Error] Creating directory.' + dir)
         _create_folder(dir)
 
-        self.model.to("cpu")
         path = os.path.join(dir, f'{model_name}.pth')
         checkpoint = {
             'model_state_dict': self.best_state['model'] if best_model else self.model.state_dict(),
@@ -321,7 +319,6 @@ class Trainer:
             'scheduler_state_dict': self.scheduler.state_dict()
             }
         torch.save(checkpoint, path)
-        self.model.to(self.device)
         print(f'[COMPLETE] Save at {path}')
 
 
