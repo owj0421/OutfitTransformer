@@ -3,7 +3,8 @@
 <div align="center"> 2023. 12. 26 : CP, FITB is Available </div>
 
 ## 🤗 Introduction
-Implementation of paper - [Outfit Transformer: Outfit Representations for Fashion Recommendation](https://arxiv.org/abs/2204.04812)
+Implementation of paper - [Outfit Transformer: Outfit Representations for Fashion Recommendation](https://arxiv.org/abs/2204.04812)<br>
+Overall code structure is based on [DeepFashion](https://github.com/owj0421/DeepFashion) repository.
 
 
 <div align="center"> <img src = https://github.com/owj0421/outfit-transformer/assets/98876272/fc39d1c7-b076-495d-8213-3b98ef038b64 width = 512> </div>
@@ -24,6 +25,11 @@ The figures below are derived using the Polyvore-D (disjoint) test dataset.
 
 </div>
 
+**Note**
+- Due to size of model which much smaller than original, Performance might be lower than its.
+
+
+
 ## ⚙ Install Dependencies
 This code is tested with python 3.9.16, torch 1.12.1
 ```
@@ -43,7 +49,6 @@ python train.py --train_task cp --valid_task cp --train_batch 64 --valid_batch 9
 ```
 python train.py --train_task cir --valid_task cir --train_batch 48 --valid_batch 96 --n_epochs 2 --learning_rate 5e-5 --scheduler_step_size 100 --work_dir $WORK_DIR --data_dir $DATA_DIR --wandb_api_key $WANDB_API_KEY --checkpoint $CHECKPOINT
 ```
-Checkpoint is trained on single NVIDIA A100 with 80GB memory.
 
 ## 🔍 Test
 ```

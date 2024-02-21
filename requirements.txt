@@ -2,7 +2,7 @@ python==3.9.16
 torch==1.12.1
 torchvision==0.14.1
 transformers==4.29.2
-sklearn==1.2.0
 albumentations
+cv2
 wandb
 tqdm

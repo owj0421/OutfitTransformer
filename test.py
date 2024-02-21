@@ -1,68 +1,102 @@
+# -*- coding:utf-8 -*-
+"""
+Author:
+    Wonjun Oh, owj0421@naver.com
+"""
 import os
 import wandb
 import argparse
-from tqdm import tqdm
+from itertools import chain
+
+import torch
+from torch.optim import AdamW
+from torch.utils.data import DataLoader
 
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
-from torch.utils.data import DataLoader
+from outfit_transformer.models.outfit_transformer import OutfitTransformer
 
-from utils.dataset import *
-from model.model import *
-from model.encoder import ItemEncoder
-from utils.metric import MetricCalculator
-from utils.trainer import *
+from outfit_transformer.datasets.polyvore import *
+
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union, Literal
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
-# Parser
-parser = argparse.ArgumentParser(description='Outfit-Transformer Trainer')
-parser.add_argument('--test_task', help='cp, fitb', type=str, default='cp')
-parser.add_argument('--test_batch', type=int, default=4)
-parser.add_argument('--work_dir', help='Full working directory', type=str, required=True)
-parser.add_argument('--data_dir', help='Full dataset directory', type=str, required=True)
-parser.add_argument('--checkpoint', default=None, required=True)
-args = parser.parse_args()
+if __name__ == '__main__':
+    # Parser
+    parser = argparse.ArgumentParser(description='OutfitTransformer')
+    parser.add_argument('--embedding_dim', help='embedding dim', type=int, default=128)
+    parser.add_argument('--task', help='', type=str, default='cp')
+    parser.add_argument('--polyvore_split', help='', type=str, default='nondisjoint')
+    parser.add_argument('--test_batch', help='Size of Batch for Validation, Test', type=int, default=32)
+    parser.add_argument('--data_dir', help='Full dataset directory', type=str, default='F:\Projects\datasets\polyvore_outfits')
+    parser.add_argument('--checkpoint', default=None)
 
-# Setup
-test_dataset_args = DatasetArguments(
-    polyvore_split = 'nondisjoint',
-    task_type = args.test_task,
-    dataset_type = 'test',
-    img_size = 224,
-    use_pretrined_tokenizer = True,
-    max_token_len = 16,
-    custom_transform = None
-    )
+    args = parser.parse_args()
 
-test_dataset = PolyvoreDataset(args.work_dir, args.data_dir, test_dataset_args)
-test_dataloader = DataLoader(test_dataset, args.test_batch, shuffle=False)
-print('[COMPLETE] Build Dataset')
+    # Setup
+    device = torch.device(0) if torch.cuda.is_available() else torch.device(1)
 
-device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    HUGGING_FACE = 'sentence-transformers/paraphrase-albert-small-v2'
+    model = OutfitTransformer(
+        embedding_dim=args.embedding_dim,
+        txt_huggingface = HUGGING_FACE
+        )
+    print('[COMPLETE] Build Model')
+    if args.checkpoint != None:
+        checkpoint = torch.load(args.checkpoint)
+        model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+        print(f'[COMPLETE] Load Model from {checkpoint}')
+    else:
+        raise ValueError(
+            'Must specify checkpoint!'
+            )
 
-checkpoint = torch.load(args.checkpoint)
-print('[COMPLETE] Load checkpoint')
+    tokenizer = AutoTokenizer.from_pretrained(HUGGING_FACE)
 
-encoder = ItemEncoder(embedding_dim=128).to(device)
-encoder.load_state_dict(checkpoint['encoder_state_dict'], strict=False)
-print('[COMPLETE] Build and Load Encoder')
+    
+    if args.task=='cp':
+        test_cp_dataset_args = DatasetArguments(
+            polyvore_split = args.polyvore_split,
+            task_type = 'cp',
+            dataset_type = 'test',
+            outfit_max_length=16,
+            use_text=True
+            )
+        test_fitb_dataset_args = DatasetArguments(
+            polyvore_split = args.polyvore_split,
+            task_type = 'fitb',
+            dataset_type = 'test',
+            outfit_max_length=16,
+            use_text=True
+            )
+        test_cp_dataloader = DataLoader(PolyvoreDataset(args.data_dir, test_cp_dataset_args, tokenizer), 
+                                        args.test_batch, shuffle=False, num_workers=args.num_workers)
+        test_fitb_dataloader = DataLoader(PolyvoreDataset(args.data_dir, test_fitb_dataset_args, tokenizer), 
+                                        args.test_batch, shuffle=False, num_workers=args.num_workers)
+    elif args.task=='cir':
+        pass
 
-model = OutfitTransformer(embedding_dim=128).to(device)
-model.load_state_dict(checkpoint['model_state_dict'], strict=False)
-print('[COMPLETE] Build and Load Model')
+    model.eval()
+    with torch.no_grad():
+        if args.task=='cp':
+            cp_score = model.cp_evaluation(
+                 dataloader = test_cp_dataloader,
+                 epoch = 0,
+                 is_test = True,
+                 device = device,
+                 )
+            fitb_score = model.fitb_evaluation(
+                dataloader = test_fitb_dataloader,
+                epoch = 0,
+                is_test = False,
+                device = device
+                )
+            print(f'TEST | Task: {args.test_task} | CP(AUC): {cp_score:.5f} | FITB(Acc): {fitb_score:.5f}')
 
-metric = MetricCalculator()
-
-encoder.eval()
-model.eval()
-with torch.no_grad():
-    if args.test_task=='cp':
-        _, acc, auc = cp_iteration(model, encoder, test_dataloader, 0, is_train=False, device=device, metric=metric)
-        print(f'TEST | Task: {args.test_task} | acc: {acc:.5f} | auc: {auc:.5f}')
-    elif args.test_task=='fitb':
-        _, acc = fitb_iteration(model, encoder, test_dataloader, 0, is_train=False, device=device, metric=metric)
-        print(f'TEST | Task: {args.test_task} | acc: {acc:.5f}')
+        elif args.task=='cir':
+            pass
+        

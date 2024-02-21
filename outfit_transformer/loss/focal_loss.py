@@ -2,22 +2,6 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 
-
-def triplet_margin_loss_with_multiple_negatives(
-        anchor: torch.Tensor,
-        positive: torch.Tensor,
-        negatives: torch.Tensor,
-        margin: int = 2,
-        reduction: str = 'mean'
-        ) -> torch.Tensor:
-    anchors = anchor.unsqueeze(1).expand_as(negatives)
-    positives = positive.expand_as(negatives)
-    loss_func = nn.TripletMarginLoss(margin=margin, reduction=reduction)
-    loss = loss_func(anchors, positives, negatives)
-
-    return loss
-    
-
 def focal_loss(
         y_prob: torch.Tensor,
         y_true: torch.Tensor,
