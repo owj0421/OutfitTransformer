@@ -1,6 +1,6 @@
 # <div align="center"> Outfit-Transformer </div>
 
-<div align="center"> 2023. 12. 26 : CP, FITB is Available </div>
+<div align="center"> 2024. 2. 22 : All code is refactored </div>
 
 ## 🤗 Introduction
 Implementation of paper - [Outfit Transformer: Outfit Representations for Fashion Recommendation](https://arxiv.org/abs/2204.04812)<br>
@@ -21,12 +21,8 @@ The figures below are derived using the Polyvore-D (disjoint) test dataset.
 |SCE-Net|0.91|59.07|5.10|
 |CSA-Net|0.91|63.73|8.27|
 |OutfitTransformer(Paper)|0.93|67.10|9.58|
-|**OutfitTransformer(Implemented)**|**0.923**|**?**|Not Trained|
-
+|**OutfitTransformer(Implemented)**|**Testing...**|**Testing...**|Not Trained|
 </div>
-
-**Note**
-- Due to size of model which much smaller than original, Performance might be lower than its.
 
 
 
@@ -42,17 +38,17 @@ Download the polyvore dataset from [here](https://github.com/xthan/polyvore-data
 
 ### Pretraining on CP(Compatibiliby Prediction) task
 ```
-python train.py --train_task cp --valid_task cp --train_batch 64 --valid_batch 96 --n_epochs 8 --learning_rate 1e-3 --work_dir $WORK_DIR --data_dir $DATA_DIR --wandb_api_key $WANDB_API_KEY
+python train.py --task cp --train_batch 64 --valid_batch 96 --n_epochs 5 --learning_rate 1e-5 --scheduler_step_size 1000 --work_dir $WORK_DIR --data_dir $DATA_DIR --wandb_api_key $WANDB_API_KEY
 ```
 
 ### Finetuning on CIR(Complementary Item Retrival) task
 ```
-python train.py --train_task cir --valid_task cir --train_batch 48 --valid_batch 96 --n_epochs 2 --learning_rate 5e-5 --scheduler_step_size 100 --work_dir $WORK_DIR --data_dir $DATA_DIR --wandb_api_key $WANDB_API_KEY --checkpoint $CHECKPOINT
+python train.py --task cir --train_batch 64 --valid_batch 96 --n_epochs 5 --learning_rate 1e-5 --scheduler_step_size 1000 --work_dir $WORK_DIR --data_dir $DATA_DIR --wandb_api_key $WANDB_API_KEY --checkpoint $CHECKPOINT
 ```
 
 ## 🔍 Test
 ```
-python test.py --test_task $TASK --work_dir $WORK_DIR --data_dir $DATA_DIR --checkpoint $CHECKPOINT
+python test.py --task $TASK --polyvore_split nondisjoint --test_batch 96 --data_dir $DATA_DIR --checkpoint $CHECKPOINT
 ```
 
 ## 🧶 Checkpoints
@@ -62,7 +58,7 @@ You can resume and load from checkpoints.
 checkpoints
 +-- $TASK
 |  +-- $YYYY_$mm_$dd
-|  |  +-- $EPOCH_$CRITERION.pth
+|  |  +-- $EPOCH_$SCORE.pth
 ```
 
 ## 🔔 Note

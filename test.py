@@ -50,10 +50,6 @@ if __name__ == '__main__':
         checkpoint = torch.load(args.checkpoint)
         model.load_state_dict(checkpoint['model_state_dict'], strict=False)
         print(f'[COMPLETE] Load Model from {checkpoint}')
-    else:
-        raise ValueError(
-            'Must specify checkpoint!'
-            )
 
     tokenizer = AutoTokenizer.from_pretrained(HUGGING_FACE)
 
@@ -74,12 +70,13 @@ if __name__ == '__main__':
             use_text=True
             )
         test_cp_dataloader = DataLoader(PolyvoreDataset(args.data_dir, test_cp_dataset_args, tokenizer), 
-                                        args.test_batch, shuffle=False, num_workers=args.num_workers)
+                                        args.test_batch, shuffle=False)
         test_fitb_dataloader = DataLoader(PolyvoreDataset(args.data_dir, test_fitb_dataset_args, tokenizer), 
-                                        args.test_batch, shuffle=False, num_workers=args.num_workers)
+                                        args.test_batch, shuffle=False)
     elif args.task=='cir':
         pass
 
+    model.to(device)
     model.eval()
     with torch.no_grad():
         if args.task=='cp':

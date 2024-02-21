@@ -117,7 +117,7 @@ if __name__ == '__main__':
         model.load_state_dict(checkpoint['model_state_dict'], strict=False)
         print(f'[COMPLETE] Load Model from {checkpoint}')
 
-    optimizer = AdamW(model.parameters(), lr=args.learning_rate,)
+    optimizer = AdamW(model.parameters(), lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.scheduler_step_size, gamma=0.5)
 
     model.fit(
