@@ -26,6 +26,7 @@ from torch.utils.data import DataLoader
 from outfit_transformer.utils.utils import *
 from outfit_transformer.models.encoder.builder import *
 from outfit_transformer.loss.focal_loss import focal_loss
+from outfit_transformer.loss.triplet_loss import triplet_loss
 
 
 class OutfitTransformer(nn.Module):
@@ -41,22 +42,22 @@ class OutfitTransformer(nn.Module):
             num_layers = 6
             ):
         super().__init__()
-        encode_dim = embedding_dim // 2
+        self.encode_dim = embedding_dim // 2
+        self.embedding_dim = embedding_dim
         #------------------------------------------------------------------------------------------------#
         # Encoder
         self.img_encoder = build_img_encoder(
             backbone = img_backbone, 
-            embedding_dim = encode_dim
+            embedding_dim = self.encode_dim
             )
         self.txt_encoder = build_txt_encoder(
             backbone = txt_backbone, 
-            embedding_dim = encode_dim, 
+            embedding_dim = self.encode_dim, 
             huggingface = txt_huggingface, 
             do_linear_probing = True
             )
         #------------------------------------------------------------------------------------------------#
         # Transformer
-        self.embedding_dim = embedding_dim
         encoder_layer = nn.TransformerEncoderLayer(
             d_model = self.embedding_dim,
             nhead = nhead,
@@ -70,8 +71,13 @@ class OutfitTransformer(nn.Module):
             )
         #------------------------------------------------------------------------------------------------#
         # Embeddings
+        # For CP
         self.cp_embedding = nn.Parameter(torch.empty((1, self.embedding_dim), dtype=torch.float32))
         nn.init.xavier_uniform_(self.cp_embedding.data)
+        # For CIR
+        # This part is different from the original paper. I replaced it with token instead of image.
+        self.cir_embedding = nn.Parameter(torch.empty((1, self.encode_dim), dtype=torch.float32))
+        nn.init.xavier_uniform_(self.cir_embedding.data)
         #------------------------------------------------------------------------------------------------#
         # FC layers for classification(for pre-training)
         self.fc_classifier = nn.Sequential(
@@ -104,43 +110,46 @@ class OutfitTransformer(nn.Module):
         return unstack_dict(outputs)
     
 
-    def cp_forward(self, x):
-        embed = torch.cat([
-            self.cp_embedding.unsqueeze(0).expand(len(x['embed']), -1, -1),
-            x['embed']
-            ], dim=1)
-        src_key_padding_mask = torch.cat([
-            torch.zeros((len(x['mask']), 1), device=embed.device), 
-            x['mask']
-            ], dim=1).bool()
-        y = self.transformer(embed, src_key_padding_mask=src_key_padding_mask)[:, 0, :]
-        y = self.fc_classifier(y)
-        return F.sigmoid(y)
-
-
-    def cir_forward(self, x):
-        y = self.transformer(x['embed'], src_key_padding_mask=x['mask'].bool())[:, 0, :]
-        y = self.fc_projection(y)
-        return y
-
-
-    def forward(self, inputs, task: Optional[Literal['cp', 'cir']] = None):
-        x = self.encode(inputs)
-        if task == 'cp':
-            return self.cp_forward(x)
-        elif task == 'cir':
-            return self.cir_forward(x)
-
-
     def iteration_step(self, batch, task, device):
         if task == 'cp':
             targets = batch['targets'].to(device)
             inputs = {key: value.to(device) for key, value in batch['inputs'].items()}
-            logits = self.forward(inputs, task)
+            x = self.encode(inputs)
+            embed = torch.cat([
+                self.cp_embedding.unsqueeze(0).expand(len(x['embed']), -1, -1),
+                x['embed']
+                ], dim=1)
+            src_key_padding_mask = torch.cat([
+                torch.zeros((len(x['mask']), 1), device=embed.device), 
+                x['mask']
+                ], dim=1).bool()
+            y = self.transformer(embed, src_key_padding_mask=src_key_padding_mask)[:, 0, :]
+            y = self.fc_classifier(y)
+            logits = F.sigmoid(y)
             loss = focal_loss(logits, targets.to(device))
         elif task == 'cir':
-            pass
-    
+            # Randomly extract the number of items to be used as query and answer.
+            n_outfit_per_batch = torch.sum(~batch['outfits']['mask'], dim=1).numpy()
+            target_item_idx = torch.LongTensor(np.random.randint(low=0, high=n_outfit_per_batch))
+            # Encode
+            inputs = {key: value.to(device) for key, value in batch['outfits'].items()}
+            x = self.encode(inputs)
+            # Extract and copy items to use as positives for triplet loss.
+            target_item_embeddings = x['embed'][range(len(target_item_idx)), target_item_idx].clone()
+            # Change the front part of embedding at the location corresponding to `target_item_idx` to `cir_embedding`
+            # The permutation variable nature of the transformer structure does not interfere with the results.
+            x['embed'][range(len(target_item_idx)), target_item_idx, :self.encode_dim] = \
+                x['embed'][range(len(target_item_idx)), target_item_idx, :self.encode_dim] * 0
+            x['embed'][range(len(target_item_idx)), target_item_idx, :self.encode_dim] = \
+                x['embed'][range(len(target_item_idx)), target_item_idx, :self.encode_dim] + self.cir_embedding.expand(len(x['embed']), -1)
+            # Take the output of the location corresponding to `target_item_idx`
+            # As above reason, results are not interfere with the results.
+            y = self.transformer(x['embed'], src_key_padding_mask=x['mask'].bool())[range(len(target_item_idx)), target_item_idx, :]
+            y = self.fc_projection(y)
+            # Margin is same as paper(2)
+            # Use both batch all, hard strategy and added them.
+            loss = triplet_loss(y, target_item_embeddings, margin=2, method='both')
+
         return loss
 
 
@@ -251,17 +260,18 @@ class OutfitTransformer(nn.Module):
                         best_criterion = cp_score
                         best_state = deepcopy(self.state_dict())
                 #----------------------------------------------------------------------------------------#
-                elif task == 'cir':
-                    cir_score = self.cir_evaluation(
-                        dataloader = valid_cir_dataloader,
-                        epoch = epoch,
-                        is_test = False,
-                        device = device,
-                        use_wandb = use_wandb
-                        )
-                    if cir_score > best_criterion:
-                        best_criterion = cir_score
-                        best_state = deepcopy(self.state_dict())
+                # Evaluation methods for CIR is not yet implemented
+                # elif task == 'cir':
+                #     cir_score = self.cir_evaluation(
+                #         dataloader = valid_cir_dataloader,
+                #         epoch = epoch,
+                #         is_test = False,
+                #         device = device,
+                #         use_wandb = use_wandb
+                #         )
+                #     if cir_score > best_criterion:
+                #         best_criterion = cir_score
+                #         best_state = deepcopy(self.state_dict())
                 #----------------------------------------------------------------------------------------#
             if epoch % save_every == 0:
                 model_name = f'{epoch}_{best_criterion:.3f}'

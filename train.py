@@ -33,8 +33,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--outfit_max_length', help='outfit_max_length', type=int, default=12)
 
-    parser.add_argument('--train_batch', help='Size of Batch for Training', type=int, default=32)
-    parser.add_argument('--valid_batch', help='Size of Batch for Validation, Test', type=int, default=32)
+    parser.add_argument('--train_batch', help='Size of Batch for Training', type=int, default=16)
+    parser.add_argument('--valid_batch', help='Size of Batch for Validation, Test', type=int, default=16)
     parser.add_argument('--n_epochs', type=int, default=5)
     parser.add_argument('--save_every', help='', type=int, default=1)
     
@@ -42,8 +42,8 @@ if __name__ == '__main__':
     parser.add_argument('--data_dir', help='Full dataset directory', type=str, default='F:\Projects\datasets\polyvore_outfits')
     parser.add_argument('--num_workers', type=int, default=0)
 
-    parser.add_argument('--scheduler_step_size', type=int, default=1000)
-    parser.add_argument('--learning_rate', type=float, default=1e-5)
+    parser.add_argument('--scheduler_step_size', type=int, default=200)
+    parser.add_argument('--learning_rate', type=float, default=5e-5)
 
     parser.add_argument('--wandb_api_key', default=None)
     parser.add_argument('--checkpoint', default=None)
@@ -60,53 +60,8 @@ if __name__ == '__main__':
 
     # Setup
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-
-    if args.task == 'cp':
-        dataset_type = 'cp'
-    elif args.task == 'cir':
-        dataset_type = 'outfit'
-
-    train_dataset_args = DatasetArguments(
-        polyvore_split = 'nondisjoint',
-        task_type = dataset_type,
-        dataset_type = 'train',
-        outfit_max_length=args.outfit_max_length,
-        use_text=True
-        )
-    valid_dataset_args = DatasetArguments(
-        polyvore_split = 'nondisjoint',
-        task_type = dataset_type,
-        dataset_type = 'valid',
-        outfit_max_length=args.outfit_max_length,
-        use_text=True
-        )
-    valid_fitb_dataset_args = DatasetArguments(
-        polyvore_split = 'nondisjoint',
-        task_type = 'fitb',
-        dataset_type = 'valid',
-        outfit_max_length=12,
-        use_text=True
-        )
-    valid_cp_dataset_args = DatasetArguments(
-        polyvore_split = 'nondisjoint',
-        task_type = 'cp',
-        dataset_type = 'valid',
-        outfit_max_length=12,
-        use_text=True
-        )
-    
     HUGGING_FACE = 'sentence-transformers/paraphrase-albert-small-v2'
     tokenizer = AutoTokenizer.from_pretrained(HUGGING_FACE)
-
-    train_dataloader = DataLoader(PolyvoreDataset(args.data_dir, train_dataset_args, tokenizer),
-                                args.train_batch, shuffle=True, num_workers=args.num_workers)
-    valid_dataloader = DataLoader(PolyvoreDataset(args.data_dir, valid_dataset_args, tokenizer),
-                                args.valid_batch, shuffle=False, num_workers=args.num_workers)
-    valid_cp_dataloader = DataLoader(PolyvoreDataset(args.data_dir, valid_cp_dataset_args, tokenizer), 
-                                       args.valid_batch, shuffle=False, num_workers=args.num_workers)
-    valid_fitb_dataloader = DataLoader(PolyvoreDataset(args.data_dir, valid_fitb_dataset_args, tokenizer), 
-                                       args.valid_batch, shuffle=False, num_workers=args.num_workers)
-
     model = OutfitTransformer(
         embedding_dim=args.embedding_dim,
         txt_huggingface = HUGGING_FACE
@@ -120,17 +75,92 @@ if __name__ == '__main__':
     optimizer = AdamW(model.parameters(), lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.scheduler_step_size, gamma=0.5)
 
-    model.fit(
-        task = args.task,
-        save_dir = args.save_dir,
-        n_epochs = args.n_epochs,
-        optimizer = optimizer,
-        train_dataloader = train_dataloader,
-        valid_dataloader = valid_dataloader,
-        valid_cp_dataloader = valid_cp_dataloader,
-        valid_fitb_dataloader = valid_fitb_dataloader,
-        valid_cir_dataloader = None,
-        device = 'cuda',
-        use_wandb = True if args.wandb_api_key else False,
-        save_every = args.save_every,
-        )
+
+    if args.task == 'cp':
+        train_dataset_args = DatasetArguments(
+            polyvore_split = 'nondisjoint',
+            task_type = 'cp',
+            dataset_type = 'train',
+            outfit_max_length=args.outfit_max_length,
+            use_text=True
+            )
+        valid_dataset_args = DatasetArguments(
+            polyvore_split = 'nondisjoint',
+            task_type = 'cp',
+            dataset_type = 'valid',
+            outfit_max_length=args.outfit_max_length,
+            use_text=True
+            )
+        valid_fitb_dataset_args = DatasetArguments(
+            polyvore_split = 'nondisjoint',
+            task_type = 'fitb',
+            dataset_type = 'valid',
+            outfit_max_length=12,
+            use_text=True
+            )
+        valid_cp_dataset_args = DatasetArguments(
+            polyvore_split = 'nondisjoint',
+            task_type = 'cp',
+            dataset_type = 'valid',
+            outfit_max_length=12,
+            use_text=True
+            )
+
+        train_dataloader = DataLoader(PolyvoreDataset(args.data_dir, train_dataset_args, tokenizer),
+                                    args.train_batch, shuffle=True, num_workers=args.num_workers)
+        valid_dataloader = DataLoader(PolyvoreDataset(args.data_dir, valid_dataset_args, tokenizer),
+                                    args.valid_batch, shuffle=False, num_workers=args.num_workers)
+        valid_cp_dataloader = DataLoader(PolyvoreDataset(args.data_dir, valid_cp_dataset_args, tokenizer), 
+                                        args.valid_batch, shuffle=False, num_workers=args.num_workers)
+        valid_fitb_dataloader = DataLoader(PolyvoreDataset(args.data_dir, valid_fitb_dataset_args, tokenizer), 
+                                        args.valid_batch, shuffle=False, num_workers=args.num_workers)
+        model.fit(
+            task = args.task,
+            save_dir = args.save_dir,
+            n_epochs = args.n_epochs,
+            optimizer = optimizer,
+            train_dataloader = train_dataloader,
+            valid_dataloader = valid_dataloader,
+            valid_cp_dataloader = valid_cp_dataloader,
+            valid_fitb_dataloader = valid_fitb_dataloader,
+            device = 'cuda',
+            use_wandb = True if args.wandb_api_key else False,
+            save_every = args.save_every,
+            )
+
+    elif args.task == 'cir':
+        train_dataset_args = DatasetArguments(
+            polyvore_split = 'nondisjoint',
+            task_type = 'outfit',
+            dataset_type = 'train',
+            outfit_max_length=args.outfit_max_length,
+            use_text=True
+            )
+        valid_dataset_args = DatasetArguments(
+            polyvore_split = 'nondisjoint',
+            task_type = 'outfit',
+            dataset_type = 'valid',
+            outfit_max_length=args.outfit_max_length,
+            use_text=True
+            )
+        train_dataloader = DataLoader(PolyvoreDataset(args.data_dir, train_dataset_args, tokenizer),
+                                    args.train_batch, shuffle=True, num_workers=args.num_workers)
+        valid_dataloader = DataLoader(PolyvoreDataset(args.data_dir, valid_dataset_args, tokenizer),
+                                    args.valid_batch, shuffle=False, num_workers=args.num_workers)
+        model.fit(
+            task = args.task,
+            save_dir = args.save_dir,
+            n_epochs = args.n_epochs,
+            optimizer = optimizer,
+            train_dataloader = train_dataloader,
+            valid_dataloader = valid_dataloader,
+            valid_cir_dataloader = None,
+            device = 'cuda',
+            use_wandb = True if args.wandb_api_key else False,
+            save_every = args.save_every,
+            )
+
+
+    
+
+    
