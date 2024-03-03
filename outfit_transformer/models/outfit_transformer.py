@@ -130,12 +130,12 @@ class OutfitTransformer(nn.Module):
         return logits
     
     def cir_forward(self, inputs, desc_inputs = None):
-        if desc_inputs:
-            desc_x = self.txt_encoder(desc_inputs)
-            query_x = torch.cat([
+        # if desc_inputs:
+        #     desc_x = self.txt_encoder(desc_inputs)
+        #     query_x = torch.cat([
                 
-            ])
-        x = self.encode(inputs)
+        #     ])
+        # x = self.encode(inputs)
         pass
 
 
