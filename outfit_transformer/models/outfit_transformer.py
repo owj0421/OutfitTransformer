@@ -109,23 +109,45 @@ class OutfitTransformer(nn.Module):
             }
         return unstack_dict(outputs)
     
+    
+    def cp_forward(self, inputs, do_encode=False):
+        if do_encode:
+            x = self.encode(inputs)
+        else:
+            x = inputs
+
+        embed = torch.cat([
+            self.cp_embedding.unsqueeze(0).expand(len(x['embed']), -1, -1),
+            x['embed']
+            ], dim=1)
+        src_key_padding_mask = torch.cat([
+            torch.zeros((len(x['mask']), 1), device=embed.device), 
+            x['mask']
+            ], dim=1).bool()
+        y = self.transformer(embed, src_key_padding_mask=src_key_padding_mask)[:, 0, :]
+        y = self.fc_classifier(y)
+        logits = F.sigmoid(y)
+        return logits
+    
+    def cir_forward(self, inputs, desc_inputs = None):
+        if desc_inputs:
+            desc_x = self.txt_encoder(desc_inputs)
+            query_x = torch.cat([
+                
+            ])
+        x = self.encode(inputs)
+        pass
+
+
+
+    
 
     def iteration_step(self, batch, task, device):
         if task == 'cp':
             targets = batch['targets'].to(device)
             inputs = {key: value.to(device) for key, value in batch['inputs'].items()}
-            x = self.encode(inputs)
-            embed = torch.cat([
-                self.cp_embedding.unsqueeze(0).expand(len(x['embed']), -1, -1),
-                x['embed']
-                ], dim=1)
-            src_key_padding_mask = torch.cat([
-                torch.zeros((len(x['mask']), 1), device=embed.device), 
-                x['mask']
-                ], dim=1).bool()
-            y = self.transformer(embed, src_key_padding_mask=src_key_padding_mask)[:, 0, :]
-            y = self.fc_classifier(y)
-            logits = F.sigmoid(y)
+
+            logits = self.cp_forward(inputs, do_encode=True)
             loss = focal_loss(logits, targets.to(device))
         elif task == 'cir':
             # Randomly extract the number of items to be used as query and answer.
@@ -305,7 +327,7 @@ class OutfitTransformer(nn.Module):
         total_targets, total_score, total_pred = [], [], []
         for iter, batch in enumerate(epoch_iterator, start=1):
             inputs = {key: value.to(device) for key, value in batch['inputs'].items()}
-            logits = self.forward(inputs, 'cp')
+            logits = self.cp_forward(inputs, do_encode=True)
 
             targets = batch['targets'].view(-1).detach().numpy().astype(int)
             run_score = logits.view(-1).cpu().detach().numpy()
