@@ -42,7 +42,7 @@ args.use_text = True
 args.use_category = False
 args.text_max_length = 16
 # Embedder&Recommender Model Settings
-args.use_clip_embedding = True
+args.use_clip_embedding = False
 args.clip_huggingface = 'patrickjohncyh/fashion-clip'
 args.huggingface = 'distiluse-base-multilingual-cased-v2'
 args.hidden = 128
@@ -50,7 +50,7 @@ args.n_layers = 6
 args.n_heads = 16
 
 # Training Setting
-args.n_epochs = 8
+args.n_epochs = 9
 args.num_workers = 0
 args.train_batch_size = 50
 args.val_batch_size = 50

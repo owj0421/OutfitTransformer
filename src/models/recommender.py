@@ -25,13 +25,12 @@ from src.loss.focal_loss import focal_loss
 from src.loss.triplet_loss import triplet_loss
 
 
-
 class RecommendationModel(nn.Module):
     
     def __init__(
             self,
             embedding_model: CLIPEmbeddingModel,
-            n_layers: int = 6,
+            n_layers: int = 3,
             n_heads: int = 16,
             normalize: bool = True
             ):
@@ -91,6 +90,24 @@ class RecommendationModel(nn.Module):
         
         task_id = torch.LongTensor([self.task2id[task] for _ in range(n_outfit)]).to(embeds.device)
         prefix_embed = self.task_embeddings(task_id).unsqueeze(1)
+        prefix_mask = torch.zeros((n_outfit, 1), dtype=torch.bool).to(embeds.device)
+        
+        embeds = torch.concat([prefix_embed, embeds], dim=1)
+        mask = torch.concat([prefix_mask, mask], dim=1)
+        
+        outputs = self.transformer(embeds, src_key_padding_mask=mask)[:, 0, :]
+        outputs = self.mlp[task](outputs)
+        
+        return outputs
+    
+    def get_cir_embedding(self, item_embeddings, query_inputs: Dict[Literal['input_ids', 'attention_mask'], Any]):
+        task = '<cir>'
+        mask, embeds = item_embeddings.values()
+        n_outfit, *_ = embeds.shape
+        
+        task_id = torch.LongTensor([self.task2id[task] for _ in range(n_outfit)]).to(embeds.device)
+        prefix_embed = self.task_embeddings(task_id) + self.embedding_model.encode(query_inputs)['embeds']
+        prefix_embed = prefix_embed.unsqueeze(1)
         prefix_mask = torch.zeros((n_outfit, 1), dtype=torch.bool).to(embeds.device)
         
         embeds = torch.concat([prefix_embed, embeds], dim=1)

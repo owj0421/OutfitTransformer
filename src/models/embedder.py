@@ -68,6 +68,7 @@ class CLIPEmbeddingModel(nn.Module):
         return self.batch_encode(inputs)
             
     def encode(self, inputs):
+
         if inputs['image_features'] is not None:
             use_image = True
             img_embeds = self.img_encoder(pixel_values=inputs['image_features']).image_embeds
@@ -98,7 +99,7 @@ class CLIPEmbeddingModel(nn.Module):
         #     category_embeds = self.category_embeddings(inputs['category_ids'])
         #     embeds = embeds + category_embeds
 
-        return {'mask': inputs['mask'], 'embeds': embeds}
+        return {'mask': inputs.get('mask', None), 'embeds': embeds}
         
     
     def batch_encode(self, inputs):
