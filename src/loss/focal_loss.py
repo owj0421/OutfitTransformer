@@ -5,7 +5,7 @@ import torch.nn as nn
 def focal_loss(
         y_prob: torch.Tensor,
         y_true: torch.Tensor,
-        alpha: float = 0.7, # 비대칭을... 1이 성능이 잘 안나오니까 1에 0.7
+        alpha: float = 0.5, # 비대칭을... 1이 성능이 잘 안나오니까 1에 0.7
         gamma: float = 2,
         reduction: str = "mean",
         ) -> torch.Tensor:

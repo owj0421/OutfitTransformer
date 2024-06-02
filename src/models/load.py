@@ -33,7 +33,6 @@ def load_model(args):
             huggingface=args.clip_huggingface,
             fp16=True,
             linear_probing=True,
-            normalize=True
             )
     else:
         embedding_model = OutfitTransformerEmbeddingModel(
@@ -42,14 +41,12 @@ def load_model(args):
             huggingface=args.huggingface,
             fp16=True,
             linear_probing=True,
-            normalize=True
             )
 
     recommendation_model = RecommendationModel(
         embedding_model=embedding_model,
         n_layers=args.n_layers,
         n_heads=args.n_heads,
-        normalize=True
         )
     
     if args.load_model:

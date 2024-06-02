@@ -12,6 +12,7 @@ from src.utils.utils import *
 from typing import Literal
 from src.datasets.processor import FashionInputProcessor
 
+
 class CLIPEmbeddingModel(nn.Module):
     def __init__(
             self,
@@ -68,13 +69,18 @@ class CLIPEmbeddingModel(nn.Module):
         return self.batch_encode(inputs)
             
     def encode(self, inputs):
-
-        if inputs['image_features'] is not None:
+        if inputs['image_embeds'] is not None:
+            use_image = True
+            img_embeds = inputs['image_embeds']
+        elif inputs['image_features'] is not None:
             use_image = True
             img_embeds = self.img_encoder(pixel_values=inputs['image_features']).image_embeds
             img_embeds = img_embeds.float()
             
-        if inputs['input_ids'] is not None:
+        if inputs['text_embeds'] is not None:
+            use_text = True
+            txt_embeds = inputs['text_embeds']
+        elif inputs['input_ids'] is not None:
             use_text = True
             txt_embeds = self.txt_encoder(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask']).text_embeds
             txt_embeds = txt_embeds.float()
@@ -118,7 +124,7 @@ class OutfitTransformerEmbeddingModel(nn.Module):
             huggingface: Optional[str] = 'sentence-transformers/all-MiniLM-L6-v2',
             fp16: bool = True,
             linear_probing: bool = True,
-            normalize: bool = True,
+            normalize: bool = False,
             ):
         super().__init__()
 
@@ -131,14 +137,22 @@ class OutfitTransformerEmbeddingModel(nn.Module):
         self.normalize = normalize
 
         self.img_encoder = resnet18(weights=ResNet18_Weights.DEFAULT)
-        self.img_encoder.fc = nn.Linear(self.img_encoder.fc.in_features, self.encoder_hidden)
+        self.img_encoder.fc = nn.Sequential(
+            nn.Linear(self.img_encoder.fc.in_features, self.encoder_hidden),
+            nn.ReLU(),
+            nn.Linear(self.encoder_hidden, self.encoder_hidden)
+            )
 
         self.txt_encoder = AutoModel.from_pretrained(huggingface)
         if fp16 and torch.cuda.is_available():
             self.txt_encoder = self.txt_encoder.half()
         if linear_probing:
             self.freeze_backbone(self.txt_encoder)
-        self.ffn = nn.Linear(384, self.encoder_hidden)
+        self.ffn = nn.Sequential(
+            nn.Linear(self.txt_encoder.config.hidden_size, self.encoder_hidden),
+            nn.ReLU(),
+            nn.Linear(self.encoder_hidden, self.encoder_hidden)
+            )
         
         # Input Processor
         self.input_processor = input_processor
@@ -148,8 +162,7 @@ class OutfitTransformerEmbeddingModel(nn.Module):
         self.category_embeddings = nn.Embedding(
             num_embeddings=self.vocab_size, 
             embedding_dim=hidden, 
-            padding_idx=self.token2id['<pad>'],
-            max_norm=1
+            padding_idx=self.token2id['<pad>']
             )
         
     def mean_pooling(self, model_output, attention_mask):

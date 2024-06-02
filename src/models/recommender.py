@@ -29,19 +29,19 @@ class RecommendationModel(nn.Module):
     
     def __init__(
             self,
-            embedding_model: CLIPEmbeddingModel,
-            n_layers: int = 3,
-            n_heads: int = 16,
-            normalize: bool = True
+            embedding_model: Any,# CLIPEmbeddingModel | OutfitTransformerEmbeddingModel,
+            n_layers: int = 6,
+            n_heads: int = 16
             ):
         super().__init__()
-        self.normalize = normalize
         self.embedding_model = embedding_model
+
         # Hyperparameters
         self.hidden = embedding_model.hidden
         self.ffn_hidden = 2048 # self.hidden * 4
         self.n_layers = n_layers
         self.n_heads = n_heads
+
         # Transformer
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=self.hidden,
@@ -54,25 +54,27 @@ class RecommendationModel(nn.Module):
             num_layers=n_layers,
             enable_nested_tensor=False
             )
-        # Task-specific tokens
+        
+        # Task-specific embeddings
         self.task = ['<cp>', '<cir>']
         self.task2id = {task: idx for idx, task in enumerate(self.task)}
         self.task_embeddings = nn.Embedding(
             num_embeddings=len(self.task), 
             embedding_dim=self.hidden,
-            max_norm=1
+            max_norm=1 if self.embedding_model.normalize else None
             )
+        
         # Task-specific MLP
         self.mlp = nn.ModuleDict({
             '<cp>': nn.Sequential(
                 nn.Linear(self.hidden, self.hidden),
-                nn.ReLU(),
+                nn.Tanh(),
                 nn.Linear(self.hidden, 1),
                 nn.Sigmoid()
                 ),
             '<cir>': nn.Sequential(
                 nn.Linear(self.hidden, self.hidden),
-                nn.ReLU(),
+                nn.Tanh(),
                 nn.Linear(self.hidden, self.hidden)
                 )
             })
@@ -85,6 +87,7 @@ class RecommendationModel(nn.Module):
     
     def calculate_compatibility(self, item_embeddings):
         task = '<cp>'
+
         mask, embeds = item_embeddings.values()
         n_outfit, *_ = embeds.shape
         
@@ -100,13 +103,21 @@ class RecommendationModel(nn.Module):
         
         return outputs
     
-    def get_cir_embedding(self, item_embeddings, query_inputs: Dict[Literal['input_ids', 'attention_mask'], Any]):
+    def get_cir_embedding(self, item_embeddings, 
+                          query_inputs: Dict[Literal['input_ids', 'attention_mask'], Any]):
         task = '<cir>'
+        
         mask, embeds = item_embeddings.values()
         n_outfit, *_ = embeds.shape
         
         task_id = torch.LongTensor([self.task2id[task] for _ in range(n_outfit)]).to(embeds.device)
-        prefix_embed = self.task_embeddings(task_id) + self.embedding_model.encode(query_inputs)['embeds']
+        if self.embedding_model.agg_func == 'mean':
+            prefix_embed = self.task_embeddings(task_id) + self.embedding_model.encode(query_inputs)['embeds']
+        elif self.embedding_model.agg_func == 'concat':
+            prefix_embed = torch.concat([
+                self.task_embeddings(task_id)[:(self.hidden // 2), :],
+                self.embedding_model.encode(query_inputs)['embeds']
+                ], dim=1)
         prefix_embed = prefix_embed.unsqueeze(1)
         prefix_mask = torch.zeros((n_outfit, 1), dtype=torch.bool).to(embeds.device)
         

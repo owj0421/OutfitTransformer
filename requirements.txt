@@ -1,4 +1,4 @@
-python==3.9.16
+python==3.10.14
 torch==1.12.1
 torchvision==0.14.1
 transformers==4.29.2

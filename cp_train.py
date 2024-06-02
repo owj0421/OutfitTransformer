@@ -42,18 +42,18 @@ args.use_text = True
 args.use_category = False
 args.text_max_length = 16
 # Embedder&Recommender Model Settings
-args.use_clip_embedding = True
+args.use_clip_embedding = False
 args.clip_huggingface = 'patrickjohncyh/fashion-clip'
-args.huggingface = 'distiluse-base-multilingual-cased-v2'
+args.huggingface = 'sentence-transformers/all-mpnet-base-v2'
 args.hidden = 128
 args.n_layers = 6
 args.n_heads = 16
 
 # Training Setting
-args.n_epochs = 8
+args.n_epochs = 10
 args.num_workers = 0
-args.train_batch_size = 50
-args.val_batch_size = 50
+args.train_batch_size = 64
+args.val_batch_size = 64
 args.lr = 1e-4
 args.wandb_key = None
 args.use_wandb = True if args.wandb_key else False
@@ -114,7 +114,7 @@ def cp_iteration(epoch, model, optimizer, scheduler, criterion, dataloader, devi
     auc = roc_auc_score(total_y_true, total_y_pred)
     print( f'[{type_str} END] Epoch: {epoch + 1:03} | loss: {loss:.5f} | Acc: {acc:.3f} | AUC: {auc:.3f}' + '\n')
 
-    return loss, acc
+    return loss, acc, auc
 
 
 if __name__ == '__main__':
@@ -153,20 +153,20 @@ if __name__ == '__main__':
     scheduler = OneCycleLR(optimizer, args.lr, epochs=args.n_epochs, steps_per_epoch=len(train_dataloader))
     criterion = focal_loss
 
-    best_acc = 0
+    best_auc = 0
     for epoch in range(args.n_epochs):
         model.train()
-        train_loss, train_acc = cp_iteration(
+        train_loss, train_acc, train_auc = cp_iteration(
             epoch, model, optimizer, scheduler, criterion, 
             dataloader=train_dataloader, device=device, is_train=True, use_wandb=args.use_wandb
             )
         model.eval()
         with torch.no_grad():
-            val_loss, val_acc = cp_iteration(
+            val_loss, val_acc, val_auc = cp_iteration(
                 epoch, model, optimizer, scheduler, criterion, 
                 dataloader=val_dataloader, device=device, is_train=False, use_wandb=args.use_wandb
                 )
-        if val_acc > best_acc:
-            best_acc = val_acc
-            model_name = f'{TASK}_best_model_ep{epoch}_acc{best_acc:.3f}'
+        if val_auc > best_auc:
+            best_auc = val_auc
+            model_name = f'{TASK}_best_model_ep{epoch}_auc{best_auc:.3f}'
             save_model(model, save_dir, model_name, device)
