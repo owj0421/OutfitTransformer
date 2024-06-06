@@ -22,43 +22,19 @@ from dataclasses import dataclass
 
 from sklearn.metrics import roc_auc_score
 
-@ dataclass
-class Args:
-    pass
-
-
+from model_args import Args
 args = Args()
-# Dir Settings
-args.data_dir = 'F:/Projects/datasets/polyvore_outfits'
-args.checkpoint_dir = 'F:/Projects/OutfitTransformer/checkpoints'
-args.model_path = None
-args.load_model = True if args.model_path is not None else False
-# Dataset & Input Processor Settings
-args.polyvore_split = 'nondisjoint'
-args.categories = ['<bottoms>', '<outerwear>', '<tops>', '<scarves>', '<hats>', '<all-body>', '<accessories>', '<sunglasses>', '<shoes>', '<jewellery>', '<bags>']
-args.outfit_max_length = 16
-args.use_image = True
-args.use_text = True
-args.use_category = False
-args.text_max_length = 16
-# Embedder&Recommender Model Settings
-args.use_clip_embedding = False
-args.clip_huggingface = 'patrickjohncyh/fashion-clip'
-args.huggingface = 'sentence-transformers/all-mpnet-base-v2'
-args.hidden = 128
-args.n_layers = 6
-args.n_heads = 16
 
 # Training Setting
-args.n_epochs = 10
+args.n_epochs = 15
 args.num_workers = 0
 args.train_batch_size = 64
-args.val_batch_size = 64
-args.lr = 1e-4
+args.val_batch_size = 96
+args.test_batch_size = 96
+args.lr = 4e-5
 args.wandb_key = None
 args.use_wandb = True if args.wandb_key else False
 args.with_cuda = True
-
 
 def cp_iteration(epoch, model, optimizer, scheduler, criterion, dataloader, device, is_train, use_wandb):
     scaler = torch.cuda.amp.GradScaler()
@@ -110,7 +86,10 @@ def cp_iteration(epoch, model, optimizer, scheduler, criterion, dataloader, devi
     total_y_pred = torch.concat(total_y_pred)
     is_correct = (total_y_true == total_y_pred)
     acc = torch.sum(is_correct).item() / torch.numel(is_correct)
-    auc = roc_auc_score(total_y_true, total_y_pred)
+    try:
+        auc = roc_auc_score(total_y_true, total_y_pred)
+    except:
+        auc = 0
     print( f'[{type_str} END] Epoch: {epoch + 1:03} | loss: {loss:.5f} | Acc: {acc:.3f} | AUC: {auc:.3f}' + '\n')
 
     return loss, acc, auc
@@ -118,6 +97,7 @@ def cp_iteration(epoch, model, optimizer, scheduler, criterion, dataloader, devi
 
 if __name__ == '__main__':
     TASK = 'cp'
+    EMBEDDER_TYPE = 'outfit_transformer' if not args.use_clip_embedding else 'clip'
 
     # Wandb
     if args.use_wandb:
@@ -128,20 +108,21 @@ if __name__ == '__main__':
         run = wandb.init()
     
     date_info = datetime.today().strftime("%y%m%d")
-    save_dir = os.path.join(args.checkpoint_dir, TASK, date_info)
+    save_dir = os.path.join(args.checkpoint_dir, EMBEDDER_TYPE, TASK, date_info)
 
     cuda_condition = torch.cuda.is_available() and args.with_cuda
     device = torch.device("cuda:0" if cuda_condition else "cpu")
     
     model, input_processor = load_model(args)
     model.to(device)
-    
+
+
     train_dataset_args = DatasetArguments(
         polyvore_split=args.polyvore_split, task_type=TASK, dataset_type='train')
     train_dataset = PolyvoreDataset(args.data_dir, train_dataset_args, input_processor)
     train_dataloader = DataLoader(
         dataset=train_dataset, batch_size=args.train_batch_size, shuffle=True, num_workers=args.num_workers)
-
+    
     val_dataset_args = DatasetArguments(
         polyvore_split=args.polyvore_split, task_type=TASK, dataset_type='valid')
     val_dataset = PolyvoreDataset(args.data_dir, val_dataset_args, input_processor)
@@ -165,7 +146,7 @@ if __name__ == '__main__':
                 epoch, model, optimizer, scheduler, criterion, 
                 dataloader=val_dataloader, device=device, is_train=False, use_wandb=args.use_wandb
                 )
-        if val_auc > best_auc:
+        if val_auc >= best_auc:
             best_auc = val_auc
-            model_name = f'{TASK}_best_model_ep{epoch}_auc{best_auc:.3f}'
+            model_name = f'AUC{best_auc:.3f}'
             save_model(model, save_dir, model_name, device)

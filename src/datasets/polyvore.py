@@ -25,13 +25,14 @@ from src.utils.utils import *
 from src.datasets.processor import *
 import pickle
 
+from PIL import Image
+
 
 @dataclass
 class DatasetArguments:
     polyvore_split: str = 'nondisjoint'
     task_type: str = 'cp'
     dataset_type: str = 'train'
-    
 
 class PolyvoreDataset(Dataset):
 
@@ -39,7 +40,7 @@ class PolyvoreDataset(Dataset):
             self,
             data_dir: str,
             args: DatasetArguments,
-            input_processor: FashionInputProcessor
+            input_processor: FashionInputProcessor,
             ):
         # Directory settings
         self.img_dir = os.path.join(data_dir, 'images')
@@ -50,6 +51,7 @@ class PolyvoreDataset(Dataset):
         self.item_ids, self.item_id2idx, self.item_id2category, self.category2item_ids, \
             self.categories, self.outfit_id2item_id, self.item_id2desc = load_data(data_dir, args)
         self.input_processor = input_processor
+
             
         # Input Type
         if args.task_type == 'cp':
@@ -59,13 +61,12 @@ class PolyvoreDataset(Dataset):
         elif args.task_type == 'cir':
             self.data = load_triplet_inputs(data_dir, args, self.outfit_id2item_id)
         else:
-            raise ValueError('task_type must be one of "cp", "fitb", and "outfit".')
+            raise ValueError('task_type must be one of "cp", "fitb", and "cir".')
 
     def _load_img(self, item_id):
         path = os.path.join(self.img_dir, f"{item_id}.jpg")
         img = cv2.imread(path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
         return img
     
     def _load_txt(self, item_id):
@@ -73,10 +74,11 @@ class PolyvoreDataset(Dataset):
 
         return desc
     
-    def _get_inputs(self, item_ids, pad: bool=False) -> Dict[Literal['input_mask', 'img', 'desc'], Tensor]:
+    def _get_inputs(self, item_ids, pad: bool=False) -> Dict[str, Tensor]:
         category = [self.item_id2category[item_id] for item_id in item_ids]
         images = [self._load_img(item_id) for item_id in item_ids]
         texts = [self._load_txt(item_id) for item_id in item_ids]
+        
         return self.input_processor(category, images, texts=texts, do_pad=pad)
 
     def __getitem__(self, idx):

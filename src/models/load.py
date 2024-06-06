@@ -31,7 +31,6 @@ def load_model(args):
             input_processor=input_processor,
             hidden=args.hidden,
             huggingface=args.clip_huggingface,
-            fp16=True,
             linear_probing=True,
             )
     else:
@@ -39,7 +38,6 @@ def load_model(args):
             input_processor=input_processor,
             hidden=args.hidden,
             huggingface=args.huggingface,
-            fp16=True,
             linear_probing=True,
             )
 

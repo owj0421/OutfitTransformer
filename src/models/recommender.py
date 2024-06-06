@@ -67,13 +67,11 @@ class RecommendationModel(nn.Module):
         # Task-specific MLP
         self.mlp = nn.ModuleDict({
             '<cp>': nn.Sequential(
-                nn.Linear(self.hidden, self.hidden),
                 nn.ReLU(),
                 nn.Linear(self.hidden, 1),
                 nn.Sigmoid()
                 ),
             '<cir>': nn.Sequential(
-                nn.Linear(self.hidden, self.hidden),
                 nn.Tanh(),
                 nn.Linear(self.hidden, self.hidden)
                 )

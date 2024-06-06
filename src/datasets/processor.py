@@ -93,60 +93,61 @@ class FashionInputProcessor:
             images: Optional[List[ndarray]]=None, 
             texts: Optional[List[str]]=None, 
             do_pad: bool=True,
-            do_truncation: bool=True,
             **kwargs
             ) -> Dict[str, Tensor]:
-        """Preprocess set of outfit items.
+        return self.preprocess_batch(category, images, texts, do_pad)
 
-        :param category     : List of category of cloths
-        :param images       : (If using text images) List of images of cloths, which is first converted to ndarray via cv2.
-        :param texts        : (If using texts) List of descriptions of cloths.
-        :param text_features: (If using text features) List of text vectors of cloths
-        :param do_pad       : True will pad item squence based on `self.outfit_max_lenght`.
-        :param do_truncation: True will trancate item squence based on `self.outfit_max_lenght`.
-        :return: A dictionary composed of a Deep Fashion model input.
-        """
-        if category is None:
-            raise ValueError("You have to specify `category`.")
-        if texts is None and images is None:
-            raise ValueError("You have to specify either `texts` or `images`.")
-        
-        inputs = {'mask': None, 'category_ids': None, 'input_ids': None, 'attention_mask': None, 'image_features': None}
+    def preprocess(self, category=None, image=None, text=None, **kwargs):
+        outputs = {'mask': None, 'category_ids': None, 'image_features': None, 'input_ids': None, 'attention_mask': None}
 
-        if do_pad:
-            mask = torch.ones((self.outfit_max_length), dtype=torch.bool)
-            mask[:len(category)] = False
-        else:
-            mask = torch.zeros(min((len(category), self.outfit_max_length)), dtype=torch.bool)
-        inputs['mask'] = mask
-        
+        outputs['mask'] = torch.BoolTensor([False])
         if category is not None:
-            if do_truncation:
-                category = category[:self.outfit_max_length]
-            if do_pad:
-                category = category + [self.CATEGORY_PAD for _ in range(self.outfit_max_length - len(category))]
-            inputs['category_ids'] = torch.LongTensor([self.token2id[c] for c in category])
+            category_ids = torch.LongTensor([self.token2id[category]])
+            outputs['category_ids'] = category_ids
+        if image is not None:
+            image_features = self.image_processor(image, **kwargs)['pixel_values'][0]
+            if isinstance(image_features, np.ndarray):
+                image_features = torch.from_numpy(image_features)
+            outputs['image_features'] = image_features
+        if text is not None:
+            text_ = self.text_tokenizer([text], max_length=self.text_max_length, padding=self.text_padding, truncation=self.text_truncation, return_tensors='pt')
+            outputs['input_ids'] = text_['input_ids'].squeeze(0)
+            outputs['attention_mask'] = text_['attention_mask'].squeeze(0)
+
+        return outputs
+
+    def preprocess_batch(
+            self, 
+            categories: Optional[List[str]]=None, 
+            images: Optional[List[ndarray]]=None, 
+            texts: Optional[List[str]]=None, 
+            do_pad: bool=True,
+            **kwargs
+            ) -> Dict[str, Tensor]:
         
-        if self.use_text and texts is not None:
-            if do_truncation:
-                texts = texts[:self.outfit_max_length]
-            if do_pad:
-                texts = texts + [self.TEXT_PAD for _ in range(self.outfit_max_length - len(texts))]
-            encoding = self.text_tokenizer(texts, max_length=self.text_max_length, padding=self.text_padding, truncation=self.text_truncation, return_tensors='pt')
-            inputs['input_ids'] = encoding.input_ids
-            inputs['attention_mask'] = encoding.attention_mask
+        get_item_num = lambda x: len(x) if x else 0
+        num_items = min(self.outfit_max_length, max([get_item_num(x) for x in [categories, images, texts]]))
+        
+        inputs = {'mask': [], 'category_ids': [], 'image_features': [], 'input_ids': [], 'attention_mask': []}
+        for item_idx in range(num_items):
+            category = categories[item_idx] if categories else None
+            image = images[item_idx] if images else None
+            text = texts[item_idx] if texts else None
+            for k, v in self.preprocess(category, image, text).items():
+                if v is None:
+                    continue
+                inputs[k].append(v)
 
-        if self.use_image and images is not None:
-            
-            images = self.image_processor(images, **kwargs)['pixel_values']
-            
-            if do_truncation:
-                images = images[:self.outfit_max_length]
-            if do_pad:
-                images = images + [self.IMAGE_PAD for _ in range(self.outfit_max_length - len(images))]
-                
-            inputs['image_features'] = torch.from_numpy(np.stack(images))
-
+        for k in list(inputs.keys()):
+            if len(inputs[k]) > 0:
+                if do_pad:
+                    pad_item = torch.zeros_like(inputs[k][-1]) if k != 'mask' else torch.BoolTensor([True])
+                    inputs[k] += [pad_item for _ in range(self.outfit_max_length - num_items)]
+                inputs[k] = torch.stack(inputs[k])
+            else:
+                del inputs[k]
+        inputs['mask'] = inputs['mask'].squeeze()
+        
         return inputs
     
 
@@ -190,6 +191,13 @@ class FashionImageProcessor:
         :param images       : List of images of cloths, which is first converted to ndarray via cv2.
         :return: Preprocessed image as Tensor form.
         """
-        images = [self.transform(image=image)['image'] for image in images]
+
+        if len(images.shape) > 3:
+            images = [self.transform(image=image)['image'] for image in images]
+        else:
+            images = [self.transform(image=images)['image']]
 
         return {'pixel_values': images}
+    
+
+
