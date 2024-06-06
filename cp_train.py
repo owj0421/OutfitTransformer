@@ -76,21 +76,20 @@ def cp_iteration(epoch, model, optimizer, scheduler, criterion, dataloader, devi
             inputs = {key: value.to(device) for key, value in batch['inputs'].items()}
 
             input_embeddings = model.batch_encode(inputs)            
-            logits = model.calculate_compatibility(input_embeddings)
+            probs = model.calculate_compatibility(input_embeddings)
 
-        running_loss = criterion(logits, targets)
+        running_loss = criterion(probs, targets)
         loss += running_loss.item()
         if is_train == True:
             optimizer.zero_grad()
             scaler.scale(running_loss).backward()
             scaler.step(optimizer)
             scaler.update()
-            optimizer.step()
             if scheduler:
                 scheduler.step()
 
         total_y_true.append(targets.clone().flatten().detach().cpu().bool())
-        total_y_pred.append((logits > 0.5).flatten().detach().cpu().bool())
+        total_y_pred.append((probs > 0.5).flatten().detach().cpu().bool())
         is_correct = (total_y_true[-1] == total_y_pred[-1])
         running_acc = torch.sum(is_correct).item() / torch.numel(is_correct)
 

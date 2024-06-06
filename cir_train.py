@@ -44,7 +44,7 @@ args.text_max_length = 16
 # Embedder&Recommender Model Settings
 args.use_clip_embedding = False
 args.clip_huggingface = 'patrickjohncyh/fashion-clip'
-args.huggingface = 'distiluse-base-multilingual-cased-v2'
+args.huggingface = 'sentence-transformers/all-MiniLM-L6-v2'
 args.hidden = 128
 args.n_layers = 6
 args.n_heads = 16

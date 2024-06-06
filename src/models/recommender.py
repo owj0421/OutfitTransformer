@@ -68,7 +68,7 @@ class RecommendationModel(nn.Module):
         self.mlp = nn.ModuleDict({
             '<cp>': nn.Sequential(
                 nn.Linear(self.hidden, self.hidden),
-                nn.Tanh(),
+                nn.ReLU(),
                 nn.Linear(self.hidden, 1),
                 nn.Sigmoid()
                 ),
@@ -115,7 +115,7 @@ class RecommendationModel(nn.Module):
             prefix_embed = self.task_embeddings(task_id) + self.embedding_model.encode(query_inputs)['embeds']
         elif self.embedding_model.agg_func == 'concat':
             prefix_embed = torch.concat([
-                self.task_embeddings(task_id)[:(self.hidden // 2), :],
+                self.task_embeddings(task_id)[:self.embedding_model.encoder_hidden, :],
                 self.embedding_model.encode(query_inputs)['embeds']
                 ], dim=1)
         prefix_embed = prefix_embed.unsqueeze(1)

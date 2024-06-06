@@ -13,6 +13,21 @@ from typing import Literal
 from src.datasets.processor import FashionInputProcessor
 
 
+def agg_embeds(img_embeds, txt_embeds, agg_func):
+    if img_embeds is not None:
+        if txt_embeds is not None:
+            if agg_func == 'concat':
+                embeds = torch.cat([img_embeds, txt_embeds], dim=1)
+            elif agg_func == 'mean':
+                embeds = (img_embeds + txt_embeds) / 2
+        else:
+            embeds = img_embeds
+    else:
+        embeds = txt_embeds
+    
+    return embeds
+
+
 class CLIPEmbeddingModel(nn.Module):
     def __init__(
             self,
@@ -70,32 +85,20 @@ class CLIPEmbeddingModel(nn.Module):
             
     def encode(self, inputs):
         if inputs['image_embeds'] is not None:
-            use_image = True
             img_embeds = inputs['image_embeds']
         elif inputs['image_features'] is not None:
-            use_image = True
             img_embeds = self.img_encoder(pixel_values=inputs['image_features']).image_embeds
-            img_embeds = img_embeds.float()
+        else:
+            img_embeds = None
             
         if inputs['text_embeds'] is not None:
-            use_text = True
             txt_embeds = inputs['text_embeds']
         elif inputs['input_ids'] is not None:
-            use_text = True
             txt_embeds = self.txt_encoder(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask']).text_embeds
-            txt_embeds = txt_embeds.float()
-
-        if use_image:
-            if use_text:
-                if self.agg_func == 'concat':
-                    embeds = torch.cat([img_embeds, txt_embeds], dim=1)
-                elif self.agg_func == 'mean':
-                    embeds = (img_embeds + txt_embeds) / 2
-            else:
-                embeds = img_embeds
         else:
-            embeds = txt_embeds
+            txt_embeds = None
 
+        embeds = agg_embeds(img_embeds, txt_embeds, self.agg_func)
         embeds = self.ffn(embeds)
 
         if self.normalize:
@@ -124,7 +127,7 @@ class OutfitTransformerEmbeddingModel(nn.Module):
             huggingface: Optional[str] = 'sentence-transformers/all-MiniLM-L6-v2',
             fp16: bool = True,
             linear_probing: bool = True,
-            normalize: bool = False,
+            normalize: bool = True,
             ):
         super().__init__()
 
@@ -179,26 +182,19 @@ class OutfitTransformerEmbeddingModel(nn.Module):
             
     def encode(self, inputs):
         if inputs['image_features'] is not None:
-            use_image = True
             img_embeds = self.img_encoder(inputs['image_features'])
             img_embeds = img_embeds.float()
+        else:
+            img_embeds = None
             
-        if inputs['input_ids'] is not None:
-            use_text = True        
+        if inputs['input_ids'] is not None:     
             model_output = self.txt_encoder(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask'])
             txt_embeds = self.mean_pooling(model_output , inputs['attention_mask']).float()
             txt_embeds = self.ffn(txt_embeds)
-
-        if use_image:
-            if use_text:
-                if self.agg_func == 'concat':
-                    embeds = torch.cat([img_embeds, txt_embeds], dim=1)
-                elif self.agg_func == 'mean':
-                    embeds = (img_embeds + txt_embeds) / 2
-            else:
-                embeds = img_embeds
         else:
-            embeds = txt_embeds
+            txt_embeds = None
+
+        embeds = agg_embeds(img_embeds, txt_embeds, self.agg_func)
 
         if self.normalize:
             embeds = F.normalize(embeds, p=2, dim=1)
