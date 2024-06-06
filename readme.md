@@ -1,8 +1,5 @@
 # <div align="center"> Outfit-Transformer </div>
 
-<div align="center"> 2024. 2. 22 : All code is refactored </div>
-<div align="center"> 2024. 2. 26 : CIR Train is now available. (Evaluation method is not ready) </div>
-
 ## 🤗 Introduction
 Implementation of paper - [Outfit Transformer: Outfit Representations for Fashion Recommendation](https://arxiv.org/abs/2204.04812)<br>
 Overall code structure is based on [DeepFashion](https://github.com/owj0421/DeepFashion) repository.
