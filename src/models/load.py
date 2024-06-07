@@ -37,8 +37,7 @@ def load_model(args):
         embedding_model = OutfitTransformerEmbeddingModel(
             input_processor=input_processor,
             hidden=args.hidden,
-            huggingface=args.huggingface,
-            linear_probing=True,
+            huggingface=args.huggingface
             )
 
     recommendation_model = RecommendationModel(

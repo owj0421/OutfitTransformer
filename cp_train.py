@@ -13,7 +13,6 @@ import os
 import wandb
 import numpy as np
 
-from bitsandbytes.optim import AdamW8bit
 from torch.optim.lr_scheduler import OneCycleLR
 from torch.optim import AdamW
 from tqdm import tqdm
@@ -26,17 +25,18 @@ from model_args import Args
 args = Args()
 
 # Training Setting
-args.n_epochs = 15
-args.num_workers = 0
-args.train_batch_size = 64
-args.val_batch_size = 96
-args.test_batch_size = 96
+args.n_epochs = 100
+args.num_workers = 4
+args.train_batch_size = 512
+args.val_batch_size = 1024
+args.test_batch_size = 1024
 args.lr = 4e-5
-args.wandb_key = None
+args.wandb_key = 'fa37a3c4d1befcb0a7b9b4d33799c7bdbff1f81f'
 args.use_wandb = True if args.wandb_key else False
 args.with_cuda = True
 
-def cp_iteration(epoch, model, optimizer, scheduler, criterion, dataloader, device, is_train, use_wandb):
+
+def cp_iteration(epoch, model, optimizer, scheduler, dataloader, device, is_train, use_wandb):
     scaler = torch.cuda.amp.GradScaler()
 
     type_str = f'cp train' if is_train else f'cp valid'
@@ -54,7 +54,7 @@ def cp_iteration(epoch, model, optimizer, scheduler, criterion, dataloader, devi
             input_embeddings = model.batch_encode(inputs)            
             probs = model.calculate_compatibility(input_embeddings)
 
-        running_loss = criterion(probs, targets)
+        running_loss = focal_loss(probs, targets)
         loss += running_loss.item()
         if is_train == True:
             optimizer.zero_grad()
@@ -116,7 +116,6 @@ if __name__ == '__main__':
     model, input_processor = load_model(args)
     model.to(device)
 
-
     train_dataset_args = DatasetArguments(
         polyvore_split=args.polyvore_split, task_type=TASK, dataset_type='train')
     train_dataset = PolyvoreDataset(args.data_dir, train_dataset_args, input_processor)
@@ -131,19 +130,18 @@ if __name__ == '__main__':
     
     optimizer = AdamW(model.parameters(), lr=args.lr)
     scheduler = OneCycleLR(optimizer, args.lr, epochs=args.n_epochs, steps_per_epoch=len(train_dataloader))
-    criterion = focal_loss
 
     best_auc = 0
     for epoch in range(args.n_epochs):
         model.train()
         train_loss, train_acc, train_auc = cp_iteration(
-            epoch, model, optimizer, scheduler, criterion, 
+            epoch, model, optimizer, scheduler,
             dataloader=train_dataloader, device=device, is_train=True, use_wandb=args.use_wandb
             )
         model.eval()
         with torch.no_grad():
             val_loss, val_acc, val_auc = cp_iteration(
-                epoch, model, optimizer, scheduler, criterion, 
+                epoch, model, optimizer, scheduler,
                 dataloader=val_dataloader, device=device, is_train=False, use_wandb=args.use_wandb
                 )
         if val_auc >= best_auc:

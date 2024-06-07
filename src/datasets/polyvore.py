@@ -42,16 +42,15 @@ class PolyvoreDataset(Dataset):
             args: DatasetArguments,
             input_processor: FashionInputProcessor,
             ):
-        # Directory settings
-        self.img_dir = os.path.join(data_dir, 'images')
         # Arguments
         self.args = args
         self.is_train = (args.dataset_type == 'train')
         # Meta Data preprocessing
         self.item_ids, self.item_id2idx, self.item_id2category, self.category2item_ids, \
             self.categories, self.outfit_id2item_id, self.item_id2desc = load_data(data_dir, args)
+        
+        self.img_dir = os.path.join(data_dir, 'images')
         self.input_processor = input_processor
-
             
         # Input Type
         if args.task_type == 'cp':
@@ -67,6 +66,7 @@ class PolyvoreDataset(Dataset):
         path = os.path.join(self.img_dir, f"{item_id}.jpg")
         img = cv2.imread(path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
         return img
     
     def _load_txt(self, item_id):

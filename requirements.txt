@@ -3,6 +3,6 @@ torch==1.12.1
 torchvision==0.14.1
 transformers==4.29.2
 albumentations
-cv2
+opencv-python
 wandb
 tqdm
