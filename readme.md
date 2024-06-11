@@ -49,14 +49,7 @@ python test.py --task $TASK --polyvore_split nondisjoint --test_batch 96 --data_
 ```
 
 ## 🧶 Checkpoints
-Checkpoints are organized by tasks and timestamps as shown in the following file structure. <br>
-You can resume and load from checkpoints.
-```
-checkpoints
-+-- $TASK
-|  +-- $YYYY_$mm_$dd
-|  |  +-- $EPOCH_$SCORE.pth
-```
+Download the checkpoint from [here](https://drive.google.com/drive/folders/1etD-c-BOgvDHTHkmQoNh3K31P_MWt2eg?usp=share_link)
 
 ## 🔔 Note
 - A paper review of implementation can be found at [here](). (Only Available in Korean)
