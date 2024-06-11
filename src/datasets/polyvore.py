@@ -34,6 +34,7 @@ class DatasetArguments:
     task_type: str = 'cp'
     dataset_type: str = 'train'
 
+
 class PolyvoreDataset(Dataset):
 
     def __init__(
@@ -66,7 +67,6 @@ class PolyvoreDataset(Dataset):
         path = os.path.join(self.img_dir, f"{item_id}.jpg")
         img = cv2.imread(path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        
         return img
     
     def _load_txt(self, item_id):
@@ -74,7 +74,7 @@ class PolyvoreDataset(Dataset):
 
         return desc
     
-    def _get_inputs(self, item_ids, pad: bool=False) -> Dict[str, Tensor]:
+    def _get_inputs(self, item_ids: List[int], pad: bool=False) -> Dict[str, Tensor]:
         category = [self.item_id2category[item_id] for item_id in item_ids]
         images = [self._load_img(item_id) for item_id in item_ids]
         texts = [self._load_txt(item_id) for item_id in item_ids]
@@ -96,9 +96,16 @@ class PolyvoreDataset(Dataset):
             return  {'questions': questions, 'candidates': candidates} # ans is always 0 index
 
         elif self.args.task_type =='cir':
-            outfits = self._get_inputs(self.data[idx], pad=True)
+            item_ids = self.data[idx]
+            np.random.shuffle(item_ids)
+            
+            anchor_item_ids = item_ids[1:]
+            positive_item_ids = [item_ids[0]]
+            
+            anchor = self._get_inputs(anchor_item_ids, pad=True)
+            positive = self._get_inputs(positive_item_ids)
 
-            return {'outfits': outfits}
+            return {'anchor': anchor, 'positive': positive}
         
     def __len__(self):
         return len(self.data)

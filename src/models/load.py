@@ -2,7 +2,8 @@ from src.datasets.processor import FashionInputProcessor, FashionImageProcessor
 from transformers import CLIPImageProcessor, CLIPTokenizer, AutoTokenizer
 from src.models.embedder import CLIPEmbeddingModel, OutfitTransformerEmbeddingModel
 from src.models.recommender import RecommendationModel
-from src.utils.utils import load_model_from_checkpoint
+import torch
+
 
 def load_model(args):
     model_type = 'Clip Embedding' if args.use_clip_embedding else 'OutfitTransformer Embedding'
@@ -31,22 +32,28 @@ def load_model(args):
             input_processor=input_processor,
             hidden=args.hidden,
             huggingface=args.clip_huggingface,
+            normalize=args.normalize,
             linear_probing=True,
             )
     else:
         embedding_model = OutfitTransformerEmbeddingModel(
             input_processor=input_processor,
             hidden=args.hidden,
-            huggingface=args.huggingface
+            huggingface=args.huggingface,
+            normalize=args.normalize
             )
 
     recommendation_model = RecommendationModel(
         embedding_model=embedding_model,
+        ffn_hidden=args.ffn_hidden,
         n_layers=args.n_layers,
         n_heads=args.n_heads,
         )
     
     if args.load_model:
-        load_model_from_checkpoint(recommendation_model, args.model_path)
+        checkpoint = torch.load(args.model_path, map_location='cpu')
+        state_dict = checkpoint['state_dict']
+        recommendation_model.load_state_dict(state_dict)
+        print(f'[COMPLETE] Load from {args.model_path}')
     
     return recommendation_model, input_processor

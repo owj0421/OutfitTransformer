@@ -2,14 +2,13 @@
 
 ## 🤗 Introduction
 Implementation of paper - [Outfit Transformer: Outfit Representations for Fashion Recommendation](https://arxiv.org/abs/2204.04812)<br>
-Overall code structure is based on [DeepFashion](https://github.com/owj0421/DeepFashion) repository.
 
+⚠️ The original paper outlines the specifics of the target item for Compatitible Item Retrieval (CIR) and Fill-in-the-Blank (FITB). Nonetheless, for the sake of impartial evaluation alongside other models, this information was intentionally excluded. (Should a dataset emerge that necessitates the prediction of a matching item when presented with a description unrelated to the target item itself, the model will be retrained accordingly.)
 
 <div align="center"> <img src = https://github.com/owj0421/outfit-transformer/assets/98876272/fc39d1c7-b076-495d-8213-3b98ef038b64 width = 512> </div>
 
-
 ## 🎯 Performance
-The figures below are derived using the Polyvore-D (disjoint) test dataset.
+The figures below are derived using the Polyvore test dataset.
 
 <div align="center">
 
@@ -19,7 +18,7 @@ The figures below are derived using the Polyvore-D (disjoint) test dataset.
 |SCE-Net|0.91|59.07|5.10|
 |CSA-Net|0.91|63.73|8.27|
 |OutfitTransformer(Paper)|0.93|67.10|9.58|
-|**OutfitTransformer(Implemented)**|**Testing...**|**Testing...**|Not Trained|
+|**Implemented <br> (w/o target desc.)**|**0.91**|**64.10**|Not Trained|
 </div>
 
 

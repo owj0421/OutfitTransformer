@@ -1,0 +1,1 @@
+{"cp train_loss": 0.033454135060310364, "cp train_acc": 0.8333333333333334, "cp train_step": 4636, "learning_rate": 3.186840431007397e-05, "_timestamp": 1717823295.714675, "_runtime": 41328.86406493187, "_step": 4951, "cp valid_loss": 0.03629457950592041, "cp valid_acc": 0.75, "cp valid_step": 316, "_wandb": {"runtime": 41330}}

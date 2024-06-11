@@ -101,14 +101,17 @@ class FashionInputProcessor:
         outputs = {'mask': None, 'category_ids': None, 'image_features': None, 'input_ids': None, 'attention_mask': None}
 
         outputs['mask'] = torch.BoolTensor([False])
+        
         if category is not None:
             category_ids = torch.LongTensor([self.token2id[category]])
             outputs['category_ids'] = category_ids
+            
         if image is not None:
             image_features = self.image_processor(image, **kwargs)['pixel_values'][0]
             if isinstance(image_features, np.ndarray):
                 image_features = torch.from_numpy(image_features)
             outputs['image_features'] = image_features
+            
         if text is not None:
             text_ = self.text_tokenizer([text], max_length=self.text_max_length, padding=self.text_padding, truncation=self.text_truncation, return_tensors='pt')
             outputs['input_ids'] = text_['input_ids'].squeeze(0)
@@ -146,7 +149,8 @@ class FashionInputProcessor:
                 inputs[k] = torch.stack(inputs[k])
             else:
                 del inputs[k]
-        inputs['mask'] = inputs['mask'].squeeze()
+                
+        inputs['mask'] = inputs['mask'].squeeze(1)
         
         return inputs
     

@@ -13,12 +13,12 @@ from typing import Literal
 from src.datasets.processor import FashionInputProcessor
 
 
-def agg_embeds(img_embeds=None, txt_embeds=None, agg_func='concat'):
+def agg_embeds(image_embeds=None, text_embeds=None, agg_func='concat'):
     embeds = []
-    if img_embeds is not None:
-        embeds.append(img_embeds)
-    if txt_embeds is not None:
-        embeds.append(txt_embeds)
+    if image_embeds is not None:
+        embeds.append(image_embeds)
+    if text_embeds is not None:
+        embeds.append(text_embeds)
     
     if agg_func == 'concat':
         embeds = torch.cat(embeds, dim=1)
@@ -26,7 +26,18 @@ def agg_embeds(img_embeds=None, txt_embeds=None, agg_func='concat'):
         embeds = torch.mean(torch.stack(embeds), dim=0)
 
     return embeds
-    
+
+
+def mean_pooling(model_output, attention_mask):
+    token_embeddings = model_output[0] #First element of model_output contains all token embeddings
+    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+
+
+def freeze_model(model):
+    for param in model.parameters():
+        param.requires_grad = False
+
 
 class OutfitTransformerEmbeddingModel(nn.Module):
     def __init__(
@@ -34,65 +45,56 @@ class OutfitTransformerEmbeddingModel(nn.Module):
             input_processor: FashionInputProcessor,
             hidden: int = 128,
             agg_func: Optional[Literal['concat', 'mean']] = 'concat',
-            huggingface: Optional[str] = 'sentence-transformers/all-MiniLM-L6-v2',
+            huggingface: Optional[str] = 'sentence-transformers/all-MiniLM-L12-v2',
             normalize: bool = True,
             ):
         super().__init__()
 
         if hidden % 2 != 0:
             assert("Embedding size should be divisible by 2!")
+            
         # Model Settings
         self.input_processor = input_processor
         self.hidden = hidden
-        self.enc_hidden = (hidden//2) if agg_func == 'concat' else hidden
+        self.encoder_hidden = (hidden//2) if agg_func == 'concat' else hidden
         self.agg_func = agg_func
         self.normalize = normalize
+        
         # Image Encoder
-        self.img_enc = resnet18(weights=ResNet18_Weights.DEFAULT)
-        self.img_enc.fc = nn.Sequential(
-            nn.Linear(self.img_enc.fc.in_features, self.enc_hidden)
-            )
+        self.image_encoder = resnet18(weights=ResNet18_Weights.DEFAULT)
+        self.image_encoder.fc = nn.Linear(self.image_encoder.fc.in_features, self.encoder_hidden, bias=False)
+        
         # Text Encoder
-        self.txt_enc = AutoModel.from_pretrained(huggingface)
-        self.freeze_backbone(self.txt_enc)
-        self.txt_enc_classifier = nn.Sequential(
-            nn.ReLU(),
-            nn.Linear(self.txt_enc.config.hidden_size, self.enc_hidden)
-            )
-        
-    def mean_pooling(self, model_output, attention_mask):
-        token_embeddings = model_output[0] #First element of model_output contains all token embeddings
-        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-        return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-        
-    def freeze_backbone(self, model):
-        for param in model.parameters():
-            param.requires_grad = False
-        
-    def forward(self, inputs):
-        return self.batch_encode(inputs)
+        self.text_encoder = AutoModel.from_pretrained(huggingface)
+        self.text_projection = nn.Parameter(torch.empty(self.text_encoder.config.hidden_size, self.encoder_hidden))
+        freeze_model(self.text_encoder)
+        nn.init.normal_(self.text_projection, std=self.text_encoder.config.hidden_size ** -0.5)
             
     def encode(self, inputs):
-        img_embeds = self.img_enc(
-            inputs['image_features']
-            )
-        txt_embeds = self.txt_enc_classifier(self.mean_pooling(
-            self.txt_enc(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask']), 
-            inputs['attention_mask']
-            ))
-        embeds = agg_embeds(img_embeds, txt_embeds, self.agg_func)
-
+        if 'image_features' in inputs:
+            image_embeds = self.image_encoder(inputs['image_features'])
+        else:
+            image_embeds = None
+            
+        if 'input_ids' in inputs:
+            text_outputs = self.text_encoder(inputs['input_ids'], inputs['attention_mask'])
+            text_embeds = mean_pooling(text_outputs, inputs['attention_mask']) @ self.text_projection
+        else:
+            text_embeds = None
+            
+        embeds = agg_embeds(image_embeds, text_embeds, self.agg_func)
         if self.normalize:
             embeds = F.normalize(embeds, p=2, dim=1)
-
-        return {'mask': inputs['mask'], 'embeds': embeds}
+        return {'mask': inputs['mask'] if inputs.get('mask') is not None else None, 'embeds': embeds}
         
     def batch_encode(self, inputs):
         inputs = stack_dict(inputs)
         outputs = self.encode(inputs)
-
         return unstack_dict(outputs)
     
+    def forward(self, inputs):
+        return self.batch_encode(inputs)
+
 
 class CLIPEmbeddingModel(nn.Module):
     def __init__(
@@ -108,58 +110,54 @@ class CLIPEmbeddingModel(nn.Module):
 
         if hidden % 2 != 0:
             assert("Embedding size should be divisible by 2!")
-        
+
+        # Model Settings
+        self.input_processor = input_processor
         self.hidden = hidden
-        self.enc_hidden = (hidden // 2) if agg_func == 'concat' else hidden
+        self.encoder_hidden = (hidden//2) if agg_func == 'concat' else hidden
         self.agg_func = agg_func
         self.normalize = normalize
 
-        self.img_enc = CLIPVisionModelWithProjection.from_pretrained(huggingface)
-        self.txt_enc = CLIPTextModelWithProjection.from_pretrained(huggingface)
+        self.image_encoder = CLIPVisionModelWithProjection.from_pretrained(huggingface)
+        self.text_encoder = CLIPTextModelWithProjection.from_pretrained(huggingface)
         if linear_probing:
-            self.freeze_backbone(self.img_enc)
-            self.freeze_backbone(self.txt_enc)
+            freeze_model(self.image_encoder)
+            freeze_model(self.text_encoder)
         self.img_ffn = nn.Sequential(
-            nn.Linear(self.img_enc.visual_projection.out_features, self.img_enc.visual_projection.out_features),
+            nn.Linear(self.image_encoder.visual_projection.out_features, self.image_encoder.visual_projection.out_features),
             nn.ReLU(),
-            nn.Linear(self.img_enc.visual_projection.out_features, self.enc_hidden)
+            nn.Linear(self.image_encoder.visual_projection.out_features, self.encoder_hidden)
             )
         self.txt_ffn = nn.Sequential(
-            nn.Linear(self.img_enc.visual_projection.out_features, self.img_enc.visual_projection.out_features),
+            nn.Linear(self.image_encoder.visual_projection.out_features, self.image_encoder.visual_projection.out_features),
             nn.ReLU(),
-            nn.Linear(self.img_enc.visual_projection.out_features, self.enc_hidden)
+            nn.Linear(self.image_encoder.visual_projection.out_features, self.encoder_hidden)
             )
         
-        # Input Processor
-        self.input_processor = input_processor
-        
-    def freeze_backbone(self, model):
-        for param in model.parameters():
-            param.requires_grad = False
         
     def forward(self, inputs):
         return self.batch_encode(inputs)
             
     def encode(self, inputs):
         if inputs.get('image_features') is not None:
-            img_embeds = self.img_enc(pixel_values=inputs['image_features']).image_embeds
-            img_embeds = self.img_ffn(img_embeds)
+            image_embeds = self.image_encoder(pixel_values=inputs['image_features']).image_embeds
+            image_embeds = self.img_ffn(image_embeds)
         else:
-            img_embeds = None
+            image_embeds = None
             
         if inputs.get('input_ids') is not None:
-            txt_embeds = self.txt_enc(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask']).text_embeds
-            txt_embeds = self.txt_ffn(txt_embeds)
+            text_embeds = self.text_encoder(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask']).text_embeds
+            text_embeds = self.txt_ffn(text_embeds)
         else:
-            txt_embeds = None
+            text_embeds = None
 
-        embeds = agg_embeds(img_embeds, txt_embeds, self.agg_func)
+        embeds = agg_embeds(image_embeds, text_embeds, self.agg_func)
+        
         if self.normalize:
             embeds = F.normalize(embeds, p=2, dim=1)
 
         return {'mask': inputs.get('mask', None), 'embeds': embeds}
         
-    
     def batch_encode(self, inputs):
         inputs = stack_dict(inputs)
         outputs = self.encode(inputs)

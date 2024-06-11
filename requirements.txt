@@ -1,7 +1,4 @@
-python==3.10.14
-torch==1.12.1
-torchvision==0.14.1
-transformers==4.29.2
+transformers
 albumentations
 opencv-python
 wandb

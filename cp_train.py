@@ -24,49 +24,48 @@ from sklearn.metrics import roc_auc_score
 from model_args import Args
 args = Args()
 
+args.data_dir = '/home/datasets/polyvore_outfits'
+args.checkpoint_dir = './checkpoints'
+args.model_path = './checkpoints/outfit_transformer/cp/240608/AUC0.908.pth'
+    
 # Training Setting
-args.n_epochs = 100
-args.num_workers = 4
-args.train_batch_size = 512
-args.val_batch_size = 1024
-args.test_batch_size = 1024
-args.lr = 4e-5
+args.n_epochs = 4
+args.num_workers = 0
+args.train_batch_size = 64
+args.val_batch_size = 64
+args.lr = 1e-5
 args.wandb_key = 'fa37a3c4d1befcb0a7b9b4d33799c7bdbff1f81f'
 args.use_wandb = True if args.wandb_key else False
 args.with_cuda = True
 
 
 def cp_iteration(epoch, model, optimizer, scheduler, dataloader, device, is_train, use_wandb):
-    scaler = torch.cuda.amp.GradScaler()
-
     type_str = f'cp train' if is_train else f'cp valid'
     epoch_iterator = tqdm(dataloader)
     
     loss = 0.
     total_y_true = []
-    total_y_pred = []
+    total_y_score = []
     
     for iter, batch in enumerate(epoch_iterator, start=1):
-        with torch.cuda.amp.autocast():
-            targets = batch['targets'].to(device)
-            inputs = {key: value.to(device) for key, value in batch['inputs'].items()}
+        targets = batch['targets'].to(device)
+        inputs = {key: value.to(device) for key, value in batch['inputs'].items()}
 
-            input_embeddings = model.batch_encode(inputs)            
-            probs = model.calculate_compatibility(input_embeddings)
+        input_embeddings = model.batch_encode(inputs)            
+        probs = model.get_score(input_embeddings)
 
         running_loss = focal_loss(probs, targets)
         loss += running_loss.item()
         if is_train == True:
             optimizer.zero_grad()
-            scaler.scale(running_loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
+            running_loss.backward()
+            optimizer.step()
             if scheduler:
                 scheduler.step()
 
         total_y_true.append(targets.clone().flatten().detach().cpu().bool())
-        total_y_pred.append((probs > 0.5).flatten().detach().cpu().bool())
-        is_correct = (total_y_true[-1] == total_y_pred[-1])
+        total_y_score.append(probs.flatten().detach().cpu())
+        is_correct = (total_y_true[-1] == (total_y_score[-1] > 0.5))
         running_acc = torch.sum(is_correct).item() / torch.numel(is_correct)
 
         epoch_iterator.set_description(
@@ -82,12 +81,12 @@ def cp_iteration(epoch, model, optimizer, scheduler, dataloader, device, is_trai
             wandb.log(log)
 
     loss = loss / iter
-    total_y_true = torch.concat(total_y_true)
-    total_y_pred = torch.concat(total_y_pred)
-    is_correct = (total_y_true == total_y_pred)
+    total_y_true = torch.cat(total_y_true)
+    total_y_score = torch.cat(total_y_score)
+    is_correct = (total_y_true == (total_y_score > 0.5))
     acc = torch.sum(is_correct).item() / torch.numel(is_correct)
     try:
-        auc = roc_auc_score(total_y_true, total_y_pred)
+        auc = roc_auc_score(total_y_true, total_y_score)
     except:
         auc = 0
     print( f'[{type_str} END] Epoch: {epoch + 1:03} | loss: {loss:.5f} | Acc: {acc:.3f} | AUC: {auc:.3f}' + '\n')

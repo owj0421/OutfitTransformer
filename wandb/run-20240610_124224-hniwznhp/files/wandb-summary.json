@@ -1,0 +1,1 @@
+{"cir train_loss": 3.0393145084381104, "cir train_acc": 0.2109375, "cir train_step": 3858, "learning_rate": 2.631790314165005e-05, "_timestamp": 1718087778.5100386, "_runtime": 64434.37283754349, "_step": 4568, "fitb valid_loss": 0.5106145739555359, "fitb valid_acc": 0.75, "fitb valid_step": 711, "_wandb": {"runtime": 64493}}
