@@ -34,7 +34,7 @@ args.num_workers = 0
 args.train_batch_size = 64
 args.val_batch_size = 64
 args.lr = 1e-5
-args.wandb_key = 'fa37a3c4d1befcb0a7b9b4d33799c7bdbff1f81f'
+args.wandb_key = None
 args.use_wandb = True if args.wandb_key else False
 args.with_cuda = True
 
