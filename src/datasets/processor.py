@@ -103,8 +103,9 @@ class FashionInputProcessor:
         outputs['mask'] = torch.BoolTensor([False])
         
         if category is not None:
-            category_ids = torch.LongTensor([self.token2id[category]])
-            outputs['category_ids'] = category_ids
+            category_ = self.text_tokenizer([category], max_length=4, padding=self.text_padding, truncation=self.text_truncation, return_tensors='pt')
+            outputs['category_input_ids'] = category_['input_ids'].squeeze(0)
+            outputs['category_attention_mask'] = category_['attention_mask'].squeeze(0)
             
         if image is not None:
             image_features = self.image_processor(image, **kwargs)['pixel_values'][0]
@@ -131,7 +132,7 @@ class FashionInputProcessor:
         get_item_num = lambda x: len(x) if x else 0
         num_items = min(self.outfit_max_length, max([get_item_num(x) for x in [categories, images, texts]]))
         
-        inputs = {'mask': [], 'category_ids': [], 'image_features': [], 'input_ids': [], 'attention_mask': []}
+        inputs = {'mask': [], 'category_input_ids': [], 'category_attention_mask': [], 'image_features': [], 'input_ids': [], 'attention_mask': []}
         for item_idx in range(num_items):
             category = categories[item_idx] if categories else None
             image = images[item_idx] if images else None

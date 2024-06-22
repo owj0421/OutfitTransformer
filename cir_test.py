@@ -26,7 +26,7 @@ args = Args()
 
 args.data_dir = '/home/datasets/polyvore_outfits'
 args.checkpoint_dir = './checkpoints'
-args.model_path = './checkpoints/outfit_transformer/cir/240610/ACC0.647.pth'
+args.model_path = './checkpoints/outfit_transformer/cir/240610/fitb_acc0.64.pth'
     
 # Training Setting
 args.num_workers = 0
@@ -47,9 +47,12 @@ def fitb_evaluation(model, dataloader, device):
     for iter, batch in enumerate(epoch_iterator, start=1):
         questions = {key: value.to(device) for key, value in batch['questions'].items()}
         candidates = {key: value.to(device) for key, value in batch['candidates'].items()}
-
+        query = {
+            'input_ids': candidates['category_input_ids'][:, 0],
+            'attention_mask': candidates['category_attention_mask'][:, 0]
+        }
         question_item_embeds = model.batch_encode(questions)           
-        question_embeds = model.get_embedding(question_item_embeds) # B, EMBEDDING_DIM
+        question_embeds = model.get_embedding(question_item_embeds, query) # B, EMBEDDING_DIM 
         
         candidate_item_embeds = model.batch_encode(candidates) # B, N_CANDIDATES(1 positive, 3 negative), EMBEDDING_DIM
         B, N_CANDIDATES = candidates['mask'].shape

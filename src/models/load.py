@@ -53,7 +53,7 @@ def load_model(args):
     if args.load_model:
         checkpoint = torch.load(args.model_path, map_location='cpu')
         state_dict = checkpoint['state_dict']
-        recommendation_model.load_state_dict(state_dict)
+        recommendation_model.load_state_dict(state_dict, strict=False)
         print(f'[COMPLETE] Load from {args.model_path}')
     
     return recommendation_model, input_processor

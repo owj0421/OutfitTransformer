@@ -6,7 +6,7 @@ class Args:
     # Dataset & Input Processor Settings
     polyvore_split = 'nondisjoint'
     categories = ['<bottoms>', '<outerwear>', '<tops>', '<scarves>', '<hats>', '<all-body>', '<accessories>', '<sunglasses>', '<shoes>', '<jewellery>', '<bags>']
-    outfit_max_length = 12
+    outfit_max_length = 16
     use_image = True
     use_text = True
     text_max_length = 64

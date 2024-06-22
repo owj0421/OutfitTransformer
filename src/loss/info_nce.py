@@ -52,6 +52,9 @@ class InfoNCE(nn.Module):
     """
 
     def __init__(self, temperature=0.1, reduction='mean', negative_mode='unpaired'):
+        '''
+        smaller temperature increases the model’s penalty on difficult negative examples 
+        '''
         super().__init__()
         self.temperature = temperature
         self.reduction = reduction

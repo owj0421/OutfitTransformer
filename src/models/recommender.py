@@ -58,9 +58,9 @@ class RecommendationModel(nn.Module):
             )
         
         # Task-specific embeddings
-        self.task = ['<cp>', '<cir>']
+        self.task = ['<cp>', '<query>', '<embed>']
         self.task2id = {task: idx for idx, task in enumerate(self.task)}
-        self.task_embeddings = nn.Embedding(
+        self.embeddings = nn.Embedding(
             num_embeddings=len(self.task), 
             embedding_dim=self.hidden,
             max_norm=1 if self.embedding_model.normalize else None
@@ -103,36 +103,35 @@ class RecommendationModel(nn.Module):
     def get_embedding(
             self, 
             item_embeddings, 
-            query_inputs = None,
+            query = None,
             normalize: bool = True
             ):
-        task = '<cir>'
-        
         mask, embeds = item_embeddings.values()
         n_outfit, *_ = embeds.shape
         
-        if query_inputs is not None:
-            task_id = torch.LongTensor([self.task2id[task] for _ in range(n_outfit)]).to(embeds.device)
-            task_embedding = self.task_embeddings(task_id).unsqueeze(1)
-            query_embedding = self.embedding_model.batch_encode(query_inputs)['embeds']
+        if query is not None:
+            task_id = torch.LongTensor([self.task2id['<query>'] for _ in range(n_outfit)]).to(embeds.device)
+            task_embedding = self.embeddings(task_id)
+            query_embedding = self.embedding_model.encode_text(query)
             
             if self.embedding_model.agg_func == 'mean':
                 prefix_embed = task_embedding + query_embedding
             elif self.embedding_model.agg_func == 'concat':
-                task_embedding = task_embedding[:, :, :self.embedding_model.encoder_hidden]
-                prefix_embed = torch.cat([task_embedding, query_embedding], dim=2)
+                task_embedding = task_embedding[:, :self.embedding_model.encoder_hidden]
+                prefix_embed = torch.cat([task_embedding, query_embedding], dim=1)
+                if self.embedding_model.normalize:
+                    prefix_embed = F.normalize(prefix_embed, p=2, dim=1)
 
             prefix_mask = torch.zeros((n_outfit, 1), dtype=torch.bool).to(embeds.device)
-            
-            embeds = torch.cat([prefix_embed, embeds], dim=1)
+            embeds = torch.cat([prefix_embed.unsqueeze(1), embeds], dim=1)
             mask = torch.cat([prefix_mask, mask], dim=1)
             
         else:
-            task_id = torch.LongTensor([self.task2id[task] for _ in range(n_outfit)]).to(embeds.device)
-            prefix_embed = self.task_embeddings(task_id).unsqueeze(1)
+            task_id = torch.LongTensor([self.task2id['<embed>'] for _ in range(n_outfit)]).to(embeds.device)
+            prefix_embed = self.embeddings(task_id)
             prefix_mask = torch.zeros((n_outfit, 1), dtype=torch.bool).to(embeds.device)
             
-            embeds = torch.cat([prefix_embed, embeds], dim=1)
+            embeds = torch.cat([prefix_embed.unsqueeze(1), embeds], dim=1)
             mask = torch.cat([prefix_mask, mask], dim=1)
             
         outputs = self.transformer(embeds, src_key_padding_mask=mask)[:, 0, :]

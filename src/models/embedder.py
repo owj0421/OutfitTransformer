@@ -69,6 +69,11 @@ class OutfitTransformerEmbeddingModel(nn.Module):
         self.text_projection = nn.Parameter(torch.empty(self.text_encoder.config.hidden_size, self.encoder_hidden))
         freeze_model(self.text_encoder)
         nn.init.normal_(self.text_projection, std=self.text_encoder.config.hidden_size ** -0.5)
+        
+    def encode_text(self, inputs):
+        text_outputs = self.text_encoder(inputs['input_ids'], inputs['attention_mask'])
+        text_embeds = mean_pooling(text_outputs, inputs['attention_mask']) @ self.text_projection
+        return text_embeds
             
     def encode(self, inputs):
         if 'image_features' in inputs:
@@ -77,8 +82,7 @@ class OutfitTransformerEmbeddingModel(nn.Module):
             image_embeds = None
             
         if 'input_ids' in inputs:
-            text_outputs = self.text_encoder(inputs['input_ids'], inputs['attention_mask'])
-            text_embeds = mean_pooling(text_outputs, inputs['attention_mask']) @ self.text_projection
+            text_embeds = self.encode_text(inputs)
         else:
             text_embeds = None
             

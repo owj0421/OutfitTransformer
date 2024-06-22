@@ -104,8 +104,14 @@ class PolyvoreDataset(Dataset):
             
             anchor = self._get_inputs(anchor_item_ids, pad=True)
             positive = self._get_inputs(positive_item_ids)
+            neg_category = self.item_id2category[item_ids[0]]
+            neg_item_ids = list(self.category2item_ids[neg_category])
+            # Randomly select negative items
+            neg_item_ids = list(filter(lambda x: x not in positive_item_ids, neg_item_ids))
+            neg_item_ids = np.random.choice(neg_item_ids, 8)
+            negative = self._get_inputs(neg_item_ids)
 
-            return {'anchor': anchor, 'positive': positive}
+            return {'anchor': anchor, 'positive': positive, 'negative': negative}
         
     def __len__(self):
         return len(self.data)

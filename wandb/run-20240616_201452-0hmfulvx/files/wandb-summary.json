@@ -1,0 +1,1 @@
+{"fitb train_loss": 0.6940281987190247, "fitb train_acc": 0.7931034482758621, "fitb train_step": 4170, "learning_rate": 8.579161628591039e-11, "_timestamp": 1718675623.4342647, "_runtime": 106730.7134706974, "_step": 4569, "fitb test_loss": 1.8921923637390137, "fitb test_acc": 0.5, "fitb test_step": 400, "_wandb": {"runtime": 106729}}
